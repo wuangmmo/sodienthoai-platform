@@ -65,6 +65,8 @@ func main() {
 	contacts := httpserver.ContactHandler{Service: phoneHandler.Service}
 	mux.HandleFunc("GET /v1/contacts", contacts.List)
 	mux.HandleFunc("POST /v1/contacts/import", httpserver.RateLimitByIP(contacts.Import, 10, time.Hour))
+	mux.HandleFunc("POST /v1/contacts/import-file", httpserver.RateLimitByIP(contacts.ImportFile, 10, time.Hour))
+	mux.HandleFunc("GET /v1/contacts/alerts", contacts.Alerts)
 	mux.HandleFunc("POST /v1/contacts/rescan", httpserver.RateLimitByIP(contacts.Rescan, 10, time.Hour))
 	mux.HandleFunc("POST /v1/contacts/{id}/actions", httpserver.RateLimitByIP(contacts.Action, 30, time.Hour))
 	mux.HandleFunc("DELETE /v1/contacts", contacts.DeleteAll)
