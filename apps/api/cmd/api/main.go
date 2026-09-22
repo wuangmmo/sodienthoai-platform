@@ -75,6 +75,9 @@ func main() {
 	mux.HandleFunc("GET /v1/phone/{number}/comments", httpserver.RateLimitByIP(community.ListComments, 120, time.Minute))
 	mux.HandleFunc("POST /v1/phone/{number}/comments", httpserver.RateLimitByIP(community.Comment, 20, time.Hour))
 	mux.HandleFunc("POST /v1/comments/{id}/helpful", httpserver.RateLimitByIP(community.Helpful, 60, time.Hour))
+	mux.HandleFunc("POST /v1/comments/{id}/report", httpserver.RateLimitByIP(community.ReportComment, 20, time.Hour))
+	mux.HandleFunc("GET /v1/me/follows", community.Follows)
+	mux.HandleFunc("GET /v1/me/notifications", community.Notifications)
 	seoHandler := httpserver.SEOHandler{Repository: phone.Repository{DB: db}}
 	mux.HandleFunc("GET /v1/seo/sitemap", seoHandler.Sitemap)
 	mux.HandleFunc("GET /v1/seo/sitemap/count", seoHandler.SitemapCount)
