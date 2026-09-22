@@ -147,3 +147,23 @@ func (r Repository) HasOpenIdentityDispute(ctx context.Context, phoneID string) 
 	err := r.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM phone_identity_disputes WHERE phone_number_id=$1 AND status='open')`, phoneID).Scan(&exists)
 	return exists, err
 }
+
+
+func (r Repository) FootprintByPhoneID(ctx context.Context, phoneID string, limit int) (FootprintSummary, error) {
+ if limit<1||limit>100 { limit=25 }
+ summary:=FootprintSummary{Categories:map[string]int64{},Occurrences:[]WebOccurrence{}}
+ err:=r.DB.QueryRowContext(ctx,`SELECT COUNT(*),COUNT(DISTINCT domain),COUNT(DISTINCT category),MIN(detected_at),MAX(last_seen_at) FROM phone_web_occurrences WHERE phone_number_id=$1 AND is_active=TRUE`,phoneID).Scan(&summary.OccurrenceCount,&summary.IndependentDomainCount,&summary.CategoryCount,&summary.FirstDetectedAt,&summary.LastSeenAt)
+ if err!=nil{return summary,err}
+ rows,err:=r.DB.QueryContext(ctx,`SELECT category,COUNT(*) FROM phone_web_occurrences WHERE phone_number_id=$1 AND is_active=TRUE GROUP BY category ORDER BY COUNT(*) DESC`,phoneID);if err!=nil{return summary,err}
+ for rows.Next(){var category string;var count int64;if err:=rows.Scan(&category,&count);err!=nil{rows.Close();return summary,err};summary.Categories[category]=count};if err:=rows.Close();err!=nil{return summary,err}
+ items,err:=r.DB.QueryContext(ctx,`SELECT id::text,domain,url,page_title,category,context_snippet,source_confidence::float8,published_at,detected_at,last_seen_at,last_checked_at FROM phone_web_occurrences WHERE phone_number_id=$1 AND is_active=TRUE ORDER BY source_confidence DESC,last_seen_at DESC LIMIT $2`,phoneID,limit);if err!=nil{return summary,err};defer items.Close()
+ for items.Next(){var item WebOccurrence;if err:=items.Scan(&item.ID,&item.Domain,&item.URL,&item.PageTitle,&item.Category,&item.ContextSnippet,&item.SourceConfidence,&item.PublishedAt,&item.DetectedAt,&item.LastSeenAt,&item.LastCheckedAt);err!=nil{return summary,err};summary.Occurrences=append(summary.Occurrences,item)}
+ return summary,items.Err()
+}
+
+func (r Repository) QueueFootprintScan(ctx context.Context, phoneID string) (string,error) {
+ var id string
+ err:=r.DB.QueryRowContext(ctx,`INSERT INTO phone_web_scan_jobs(phone_number_id) SELECT $1 WHERE NOT EXISTS(SELECT 1 FROM phone_web_scan_jobs WHERE phone_number_id=$1 AND status IN ('pending','running')) RETURNING id::text`,phoneID).Scan(&id)
+ if errors.Is(err,sql.ErrNoRows){err=r.DB.QueryRowContext(ctx,`SELECT id::text FROM phone_web_scan_jobs WHERE phone_number_id=$1 AND status IN ('pending','running') ORDER BY requested_at DESC LIMIT 1`,phoneID).Scan(&id)}
+ return id,err
+}

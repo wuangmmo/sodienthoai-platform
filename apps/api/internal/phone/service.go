@@ -90,5 +90,18 @@ func (s Service) Profile(ctx context.Context, e164 string) (Profile, error) {
 	for i := range result.Identities {
 		if result.Identities[i].IsPrimary { primary = &result.Identities[i]; break }
 	}
-	return Profile{Number:result.Number,PrimaryIdentity:primary,Identities:result.Identities,Signals:signals,Identified:result.Identified,Disputed:disputed},nil
+	footprint, err := s.Repository.FootprintByPhoneID(ctx, result.Number.ID, 10)
+	if err != nil { return Profile{}, err }
+	return Profile{Number:result.Number,PrimaryIdentity:primary,Identities:result.Identities,Signals:signals,Identified:result.Identified,Disputed:disputed,Footprint:footprint},nil
+}
+
+
+func (s Service) Footprint(ctx context.Context,e164 string,limit int)(FootprintSummary,error){
+ n,err:=s.Find(ctx,e164);if err!=nil{return FootprintSummary{},err}
+ return s.Repository.FootprintByPhoneID(ctx,n.ID,limit)
+}
+
+func (s Service) RequestFootprintScan(ctx context.Context,e164 string)(string,error){
+ n,err:=s.Find(ctx,e164);if err!=nil{return "",err}
+ return s.Repository.QueueFootprintScan(ctx,n.ID)
 }

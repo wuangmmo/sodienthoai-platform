@@ -52,3 +52,16 @@ func (h PhoneHandler) Profile(w http.ResponseWriter,r *http.Request){
 	if err!=nil{writeJSON(w,http.StatusInternalServerError,map[string]string{"error":"internal_error"});return}
 	writeJSON(w,http.StatusOK,map[string]any{"data":profile})
 }
+
+
+func (h PhoneHandler) Footprint(w http.ResponseWriter,r *http.Request){
+ e164,err:=phone.NormalizeForCountry(r.PathValue("number"),r.URL.Query().Get("country"));if err!=nil{writeJSON(w,400,map[string]string{"error":"invalid_phone_number"});return}
+ ctx,cancel:=context.WithTimeout(r.Context(),3*time.Second);defer cancel();summary,err:=h.Service.Footprint(ctx,e164,25)
+ if phone.IsNotFound(err){writeJSON(w,404,map[string]string{"error":"phone_number_not_found"});return};if err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return};writeJSON(w,200,map[string]any{"data":summary})
+}
+
+func (h PhoneHandler) RequestFootprintScan(w http.ResponseWriter,r *http.Request){
+ e164,err:=phone.NormalizeForCountry(r.PathValue("number"),r.URL.Query().Get("country"));if err!=nil{writeJSON(w,400,map[string]string{"error":"invalid_phone_number"});return}
+ ctx,cancel:=context.WithTimeout(r.Context(),3*time.Second);defer cancel();id,err:=h.Service.RequestFootprintScan(ctx,e164)
+ if phone.IsNotFound(err){writeJSON(w,404,map[string]string{"error":"phone_number_not_found"});return};if err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return};writeJSON(w,202,map[string]string{"status":"queued","job_id":id})
+}
