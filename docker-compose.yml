@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: sodienthoai
       POSTGRES_USER: sodienthoai
-      POSTGRES_PASSWORD: sodienthoai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sodienthoai}
     ports: ["5432:5432"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -46,9 +46,10 @@ services:
       context: ./apps/api
     environment:
       API_PORT: "8080"
-      DATABASE_URL: postgres://sodienthoai:sodienthoai@postgres:5432/sodienthoai?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL:-postgres://sodienthoai:sodienthoai@postgres:5432/sodienthoai?sslmode=disable}
       REDIS_ADDR: redis:6379
-      OPENSEARCH_URL: http://opensearch:9200
+      OPENSEARCH_URL: ${OPENSEARCH_URL:-http://opensearch:9200}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
     ports: ["8080:8080"]
     depends_on:
       postgres:
@@ -63,7 +64,7 @@ services:
       context: ./apps/web
     environment:
       API_INTERNAL_BASE_URL: http://api:8080
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8080}
     ports: ["3000:3000"]
     depends_on:
       - api
