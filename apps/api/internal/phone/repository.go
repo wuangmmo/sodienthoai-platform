@@ -26,3 +26,28 @@ FROM phone_numbers WHERE e164 = $1
 	if errors.Is(err,sql.ErrNoRows) { return Number{},ErrNotFound }
 	return n,err
 }
+
+
+type SitemapNumber struct {
+	E164      string    `json:"e164"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (r Repository) Sitemap(ctx context.Context, limit int) ([]SitemapNumber, error) {
+	if limit < 1 || limit > 50000 { limit = 50000 }
+	rows, err := r.DB.QueryContext(ctx, `
+SELECT e164, updated_at
+FROM phone_numbers
+WHERE seo_status IN ('indexable','indexed')
+ORDER BY updated_at DESC
+LIMIT $1`, limit)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	items := make([]SitemapNumber,0)
+	for rows.Next() {
+		var item SitemapNumber
+		if err := rows.Scan(&item.E164,&item.UpdatedAt); err != nil { return nil,err }
+		items=append(items,item)
+	}
+	return items,rows.Err()
+}
