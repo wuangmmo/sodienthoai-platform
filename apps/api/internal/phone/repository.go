@@ -67,7 +67,7 @@ func (r Repository) SitemapPage(ctx context.Context, limit, offset int) ([]Sitem
 SELECT e164, updated_at
 FROM phone_numbers
 WHERE seo_status IN ('indexable','indexed')
-ORDER BY updated_at DESC, e164
+ORDER BY id
 LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil { return nil, err }
 	defer rows.Close()
