@@ -17,4 +17,5 @@ type Number struct {
 	DataQualityScore   float64   `json:"data_quality_score"`
 	FirstSeenAt        time.Time `json:"first_seen_at"`
 	LastSeenAt         time.Time `json:"last_seen_at"`
+	ReputationLabel    string    `json:"reputation_label"`
 }
