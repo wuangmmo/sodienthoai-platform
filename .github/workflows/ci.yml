@@ -19,8 +19,46 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
+      - run: go mod tidy
+      - run: git diff --exit-code -- go.mod go.sum
       - run: go test ./...
       - run: go vet ./...
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sodienthoai
+          POSTGRES_USER: sodienthoai
+          POSTGRES_PASSWORD: sodienthoai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sodienthoai -d sodienthoai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://sodienthoai:sodienthoai@localhost:5432/sodienthoai?sslmode=disable
+      MIGRATIONS_DIR: ../../database/migrations
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+      - run: go mod tidy
+      - name: Apply migrations
+        run: go run ./cmd/migrate
+      - name: Verify core schema
+        run: |
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "SELECT e164, seo_status, verification_status FROM phone_numbers LIMIT 0;"
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "SELECT phone_number_id, source_type, confidence FROM phone_sources LIMIT 0;"
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "SELECT version FROM schema_migrations ORDER BY version;"
 
   web:
     runs-on: ubuntu-latest
@@ -48,11 +86,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Generate web dependency lock for image build
-        working-directory: apps/web
+      - name: Prepare generated dependencies
         run: |
+          cd apps/web
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
+          cd ../api
+          go mod tidy
       - name: Build API image
         run: docker build -t sodienthoai-api:ci apps/api
       - name: Build Web image
