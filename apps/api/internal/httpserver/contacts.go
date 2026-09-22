@@ -32,3 +32,13 @@ func (h ContactHandler) DeleteAll(w http.ResponseWriter,r *http.Request){
  owner:=strings.TrimSpace(r.Header.Get("X-Contact-Owner"));if owner==""{writeJSON(w,401,map[string]string{"error":"contact_owner_required"});return}
  ctx,cancel:=context.WithTimeout(r.Context(),3*time.Second);defer cancel();if err:=h.Service.DeleteContactBook(ctx,owner);err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return};w.WriteHeader(http.StatusNoContent)
 }
+
+
+func (h ContactHandler) List(w http.ResponseWriter,r *http.Request){
+ owner:=strings.TrimSpace(r.Header.Get("X-Contact-Owner"));if owner==""{writeJSON(w,401,map[string]string{"error":"contact_owner_required"});return}
+ ctx,cancel:=context.WithTimeout(r.Context(),5*time.Second);defer cancel();items,err:=h.Service.ListContacts(ctx,owner,r.URL.Query().Get("status"),100);if err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return};writeJSON(w,200,map[string]any{"data":items})
+}
+func (h ContactHandler) Rescan(w http.ResponseWriter,r *http.Request){
+ owner:=strings.TrimSpace(r.Header.Get("X-Contact-Owner"));if owner==""{writeJSON(w,401,map[string]string{"error":"contact_owner_required"});return}
+ ctx,cancel:=context.WithTimeout(r.Context(),15*time.Second);defer cancel();changed,err:=h.Service.RescanContacts(ctx,owner);if err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return};writeJSON(w,200,map[string]any{"changed":changed})
+}
