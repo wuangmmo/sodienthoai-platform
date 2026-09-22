@@ -75,3 +75,32 @@ LIMIT $1 OFFSET $2`, limit, offset)
 	for rows.Next(){var item SitemapNumber;if err:=rows.Scan(&item.E164,&item.UpdatedAt);err!=nil{return nil,err};items=append(items,item)}
 	return items,rows.Err()
 }
+
+func (r Repository) IdentitiesByPhoneID(ctx context.Context, phoneID string) ([]Identity, error) {
+	rows, err := r.DB.QueryContext(ctx, `
+SELECT id::text, kind::text, display_name, description, website_url, address_text,
+       source_label, is_primary, confidence_score::float8
+FROM phone_identities
+WHERE phone_number_id = $1 AND is_public = TRUE
+ORDER BY is_primary DESC, confidence_score DESC, created_at ASC`, phoneID)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	items := make([]Identity, 0)
+	for rows.Next() {
+		var i Identity
+		if err := rows.Scan(&i.ID,&i.Kind,&i.DisplayName,&i.Description,&i.WebsiteURL,&i.AddressText,&i.SourceLabel,&i.IsPrimary,&i.ConfidenceScore); err != nil { return nil, err }
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
+func (r Repository) RecordLookup(ctx context.Context, e164, countryCode string, phoneID *string, found bool) error {
+	_, err := r.DB.ExecContext(ctx, `
+INSERT INTO phone_lookup_events(phone_number_id,e164,country_code,found)
+VALUES($1,$2,NULLIF($3,''),$4)`, phoneID, e164, countryCode, found)
+	if err != nil { return err }
+	if phoneID != nil {
+		_, err = r.DB.ExecContext(ctx, `UPDATE phone_numbers SET search_count=search_count+1,last_seen_at=NOW() WHERE id=$1`, *phoneID)
+	}
+	return err
+}
