@@ -51,3 +51,26 @@ LIMIT $1`, limit)
 	}
 	return items,rows.Err()
 }
+
+
+func (r Repository) SitemapCount(ctx context.Context) (int64, error) {
+	var count int64
+	err := r.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM phone_numbers WHERE seo_status IN ('indexable','indexed')`).Scan(&count)
+	return count, err
+}
+
+func (r Repository) SitemapPage(ctx context.Context, limit, offset int) ([]SitemapNumber, error) {
+	if limit < 1 || limit > 50000 { limit = 50000 }
+	if offset < 0 { offset = 0 }
+	rows, err := r.DB.QueryContext(ctx, `
+SELECT e164, updated_at
+FROM phone_numbers
+WHERE seo_status IN ('indexable','indexed')
+ORDER BY updated_at DESC, e164
+LIMIT $1 OFFSET $2`, limit, offset)
+	if err != nil { return nil, err }
+	defer rows.Close()
+	items := make([]SitemapNumber,0)
+	for rows.Next(){var item SitemapNumber;if err:=rows.Scan(&item.E164,&item.UpdatedAt);err!=nil{return nil,err};items=append(items,item)}
+	return items,rows.Err()
+}
