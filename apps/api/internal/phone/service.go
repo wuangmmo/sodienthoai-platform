@@ -42,6 +42,11 @@ func (s Service) Find(ctx context.Context, e164 string) (Number, error) {
 
 func cacheKey(e164 string) string { return "phone:v1:" + e164 }
 
+func (s Service) invalidatePhoneCache(ctx context.Context, phoneID string) {
+	if s.Cache == nil { return }
+	if n, err := s.Repository.FindByID(ctx, phoneID); err == nil { _ = s.Cache.Del(ctx, cacheKey(n.E164)).Err() }
+}
+
 func IsNotFound(err error) bool { return errors.Is(err, ErrNotFound) }
 
 type LookupResult struct {
