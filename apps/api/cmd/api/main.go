@@ -1,33 +1,45 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"log"
 	"net/http"
-	"os"
+	"time"
+
+	"github.com/wuangmmo/sodienthoai-platform/apps/api/internal/config"
+	"github.com/wuangmmo/sodienthoai-platform/apps/api/internal/database"
+	"github.com/wuangmmo/sodienthoai-platform/apps/api/internal/httpserver"
 )
 
-type healthResponse struct {
-	Status  string `json:"status"`
-	Service string `json:"service"`
-	Version string `json:"version"`
-}
-
 func main() {
-	port := os.Getenv("API_PORT")
-	if port == "" {
-		port = "8080"
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(healthResponse{
-			Status: "ok", Service: "sodienthoai-api", Version: "0.1.0",
-		})
-	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	server := &http.Server{Addr: ":" + port, Handler: mux}
-	log.Printf("sodienthoai api listening on :%s", port)
+	db, err := database.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("database connection failed: %v", err)
+	}
+	defer db.Close()
+
+	health := httpserver.HealthHandler{DB: db}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", health.Liveness)
+	mux.HandleFunc("GET /readyz", health.Readiness)
+
+	server := &http.Server{
+		Addr: ":" + cfg.Port,
+		Handler: mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout: 10 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout: 60 * time.Second,
+	}
+
+	log.Printf("sodienthoai api listening on :%s", cfg.Port)
 	log.Fatal(server.ListenAndServe())
 }
