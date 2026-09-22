@@ -9,7 +9,7 @@ func (s Service) ModerateReport(ctx context.Context,id,status string) error {
  if _,err=s.Repository.DB.ExecContext(ctx,"SELECT refresh_phone_reputation($1)",phoneID);err!=nil{return err}
  _,_=s.Repository.DB.ExecContext(ctx,"INSERT INTO phone_reputation_events(phone_number_id,event_type,source) VALUES($1,$2,$3)",phoneID,"report_"+status,"moderation")
  _ = s.Repository.AuditAdmin(ctx,"admin-api","moderate_report","phone_report",id,map[string]string{"status":status,"phone_id":phoneID})
- if err:=s.Repository.RefreshDerivedStatus(ctx,phoneID);err!=nil{return err};s.invalidatePhoneCache(ctx,phoneID);return nil
+ if err:=s.Repository.RefreshDerivedStatus(ctx,phoneID);err!=nil{return err};s.invalidatePhoneCache(ctx,phoneID);_ = s.NotifyFollowers(ctx,phoneID,"reputation_changed",map[string]string{"source":"report_moderation","status":status});return nil
 }
 func (s Service) ModerateClaim(ctx context.Context,id,status string) error {
  status=strings.ToLower(strings.TrimSpace(status));if status!="verified"&&status!="rejected"{return ErrInvalidModeration}
@@ -18,5 +18,5 @@ func (s Service) ModerateClaim(ctx context.Context,id,status string) error {
  if status=="verified"{_,err=s.Repository.DB.ExecContext(ctx,"UPDATE phone_numbers SET verification_status='verified',updated_at=NOW() WHERE id=$1",phoneID);if err!=nil{return err}}
  _,_=s.Repository.DB.ExecContext(ctx,"INSERT INTO phone_reputation_events(phone_number_id,event_type,source) VALUES($1,$2,$3)",phoneID,"claim_"+status,"moderation")
  _ = s.Repository.AuditAdmin(ctx,"admin-api","moderate_claim","phone_claim",id,map[string]string{"status":status,"phone_id":phoneID})
- if err:=s.Repository.RefreshDerivedStatus(ctx,phoneID);err!=nil{return err};s.invalidatePhoneCache(ctx,phoneID);return nil
+ if err:=s.Repository.RefreshDerivedStatus(ctx,phoneID);err!=nil{return err};s.invalidatePhoneCache(ctx,phoneID);_ = s.NotifyFollowers(ctx,phoneID,"identity_verification_changed",map[string]string{"source":"claim_moderation","status":status});return nil
 }

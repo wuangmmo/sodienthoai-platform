@@ -40,7 +40,7 @@ func main() {
 
 	if _, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
-			version VARCHAR(32) PRIMARY KEY,
+			version VARCHAR(128) PRIMARY KEY,
 			applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)
 	`); err != nil {
