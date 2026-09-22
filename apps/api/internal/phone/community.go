@@ -50,3 +50,11 @@ func(s Service) NotifyFollowers(ctx context.Context,phoneID,eventType string,pay
 func(s Service) MarkNotificationRead(ctx context.Context,subject,id string)error{
  uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return err};res,err:=s.Repository.DB.ExecContext(ctx,`UPDATE user_notifications SET read_at=COALESCE(read_at,NOW()) WHERE id=$1 AND user_id=$2`,id,uid);if err!=nil{return err};n,_:=res.RowsAffected();if n==0{return ErrInvalidComment};return nil
 }
+
+
+func(s Service) MarkAllNotificationsRead(ctx context.Context,subject string)error{
+ uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return err};_,err=s.Repository.DB.ExecContext(ctx,`UPDATE user_notifications SET read_at=NOW() WHERE user_id=$1 AND read_at IS NULL`,uid);return err
+}
+func(s Service) UnreadNotificationCount(ctx context.Context,subject string)(int64,error){
+ uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return 0,err};var count int64;err=s.Repository.DB.QueryRowContext(ctx,`SELECT COUNT(*) FROM user_notifications WHERE user_id=$1 AND read_at IS NULL`,uid).Scan(&count);return count,err
+}
