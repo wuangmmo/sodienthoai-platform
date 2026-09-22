@@ -104,3 +104,12 @@ VALUES($1,$2,NULLIF($3,''),$4)`, phoneID, e164, countryCode, found)
 	}
 	return err
 }
+
+func (r Repository) EnsureDiscovered(ctx context.Context,e164,countryCode,callingCode,nationalNumber string)(Number,error){
+ _,err:=r.DB.ExecContext(ctx,`
+INSERT INTO phone_numbers(country_code,calling_code,national_number,e164,verification_status,seo_status)
+VALUES($1,$2,$3,$4,'unverified','noindex')
+ON CONFLICT(e164) DO UPDATE SET last_seen_at=NOW()`,countryCode,callingCode,nationalNumber,e164)
+ if err!=nil{return Number{},err}
+ return r.FindByE164(ctx,e164)
+}
