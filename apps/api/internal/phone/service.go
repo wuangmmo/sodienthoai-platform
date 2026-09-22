@@ -43,3 +43,26 @@ func (s Service) Find(ctx context.Context, e164 string) (Number, error) {
 func cacheKey(e164 string) string { return "phone:v1:" + e164 }
 
 func IsNotFound(err error) bool { return errors.Is(err, ErrNotFound) }
+
+type LookupResult struct {
+	Number     Number     `json:"number"`
+	Identities []Identity `json:"identities"`
+	Identified bool       `json:"identified"`
+}
+
+func (s Service) Lookup(ctx context.Context, e164 string) (LookupResult, error) {
+	n, err := s.Find(ctx, e164)
+	if err != nil {
+		if IsNotFound(err) { _ = s.Repository.RecordLookup(ctx, e164, countryFromE164(e164), nil, false) }
+		return LookupResult{}, err
+	}
+	identities, err := s.Repository.IdentitiesByPhoneID(ctx, n.ID)
+	if err != nil { return LookupResult{}, err }
+	_ = s.Repository.RecordLookup(ctx, e164, n.CountryCode, &n.ID, true)
+	return LookupResult{Number:n, Identities:identities, Identified:len(identities)>0}, nil
+}
+
+func countryFromE164(e164 string) string {
+	if len(e164) >= 3 && e164[:3] == "+84" { return "VN" }
+	return ""
+}
