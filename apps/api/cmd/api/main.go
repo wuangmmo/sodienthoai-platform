@@ -46,7 +46,7 @@ func main() {
 	}}
 	phoneLookup := httpserver.RateLimitByIP(phoneHandler.Get, 120, time.Minute)
 	mux.HandleFunc("GET /v1/phone/{number}", phoneLookup)
-	searchHandler := httpserver.SearchHandler{Repository: phone.Repository{DB: db}}
+	searchHandler := httpserver.SearchHandler{Repository: phone.Repository{DB: db}, Search: searchClient}
 	mux.HandleFunc("GET /v1/search", httpserver.RateLimitByIP(searchHandler.Get, 120, time.Minute))
 	mux.HandleFunc("POST /v1/phone/{number}/reports", httpserver.RateLimitByIP(phoneHandler.Report, 20, time.Hour))
 	mux.HandleFunc("POST /v1/phone/{number}/claims", httpserver.RateLimitByIP(phoneHandler.Claim, 10, time.Hour))
