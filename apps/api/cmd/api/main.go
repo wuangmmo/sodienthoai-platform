@@ -64,6 +64,8 @@ func main() {
 	mux.HandleFunc("GET /v1/admin/audit", admin.Audit)
 	contacts := httpserver.ContactHandler{Service: phoneHandler.Service}
 	mux.HandleFunc("POST /v1/contacts/import", httpserver.RateLimitByIP(contacts.Import, 10, time.Hour))
+	mux.HandleFunc("POST /v1/contacts/{id}/actions", httpserver.RateLimitByIP(contacts.Action, 30, time.Hour))
+	mux.HandleFunc("DELETE /v1/contacts", contacts.DeleteAll)
 	seoHandler := httpserver.SEOHandler{Repository: phone.Repository{DB: db}}
 	mux.HandleFunc("GET /v1/seo/sitemap", seoHandler.Sitemap)
 	mux.HandleFunc("GET /v1/seo/sitemap/count", seoHandler.SitemapCount)
