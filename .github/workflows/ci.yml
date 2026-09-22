@@ -1,0 +1,249 @@
+name: CI
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+      - run: go mod tidy
+      - name: Upload generated Go dependency files
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-go-deps
+          path: |
+            apps/api/go.mod
+            apps/api/go.sum
+      - run: go test ./...
+      - run: go vet ./...
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sodienthoai
+          POSTGRES_USER: sodienthoai
+          POSTGRES_PASSWORD: sodienthoai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sodienthoai -d sodienthoai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://sodienthoai:sodienthoai@localhost:5432/sodienthoai?sslmode=disable
+      MIGRATIONS_DIR: ../../database/migrations
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+      - run: go mod tidy
+      - name: Apply migrations
+        run: go run ./cmd/migrate
+      - name: Verify core schema
+        run: |
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "SELECT e164, seo_status, verification_status FROM phone_numbers LIMIT 0;"
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "SELECT phone_number_id, source_type, confidence FROM phone_sources LIMIT 0;"
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "SELECT version FROM schema_migrations ORDER BY version;"
+      - name: Seed lookup fixture
+        working-directory: .
+        run: PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -f database/testdata/seed.sql
+      - name: Verify seeded phone
+        run: |
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT e164 || '|' || verification_status || '|' || seo_status FROM phone_numbers WHERE e164='+84705899899';" | grep -Fx "+84705899899|verified|indexable"
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT count(*) FROM phone_sources s JOIN phone_numbers p ON p.id=s.phone_number_id WHERE p.e164='+84705899899' AND s.source_type='ci_seed';" | grep -Fx "1"
+      - name: Start API against PostgreSQL
+        env:
+          API_PORT: "18080"
+          REDIS_ADDR: localhost:6379
+          OPENSEARCH_URL: http://localhost:9200
+        run: echo "HTTP smoke test runs in the integration job where Redis and OpenSearch are available."
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate dependency lock
+        run: |
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-package-lock
+          path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare generated dependencies
+        run: |
+          cd apps/web
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts
+          cd ../api
+          go mod tidy
+      - name: Build API image
+        run: docker build -t sodienthoai-api:ci apps/api
+      - name: Build Web image
+        run: docker build -t sodienthoai-web:ci apps/web
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sodienthoai
+          POSTGRES_USER: sodienthoai
+          POSTGRES_PASSWORD: sodienthoai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sodienthoai -d sodienthoai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      opensearch:
+        image: opensearchproject/opensearch:2
+        env:
+          discovery.type: single-node
+          DISABLE_SECURITY_PLUGIN: "true"
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+        ports:
+          - 9200:9200
+    env:
+      DATABASE_URL: postgres://sodienthoai:sodienthoai@localhost:5432/sodienthoai?sslmode=disable
+      REDIS_ADDR: localhost:6379
+      OPENSEARCH_URL: http://localhost:9200
+      API_PORT: "18080"
+      MIGRATIONS_DIR: ../../database/migrations
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+      - run: go mod tidy
+      - name: Wait for OpenSearch
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:9200/_cluster/health >/dev/null && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Apply migrations
+        run: go run ./cmd/migrate
+      - name: Seed lookup fixture
+        working-directory: .
+        run: PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -f database/testdata/seed.sql
+      - name: Start API
+        run: |
+          nohup go run ./cmd/api > /tmp/sodienthoai-api.log 2>&1 &
+          echo $! > /tmp/sodienthoai-api.pid
+      - name: Verify readiness
+        run: |
+          for i in $(seq 1 30); do
+            BODY=$(curl -fsS http://localhost:18080/readyz || true)
+            echo "$BODY"
+            echo "$BODY" | grep -q '"status":"ready"' && exit 0
+            sleep 1
+          done
+          cat /tmp/sodienthoai-api.log
+          exit 1
+      - name: Verify phone lookup over HTTP
+        run: |
+          BODY=$(curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899')
+          echo "$BODY"
+          echo "$BODY" | grep -q '"e164":"+84705899899"'
+          echo "$BODY" | grep -q '"verification_status":"verified"'
+          echo "$BODY" | grep -q '"seo_status":"indexable"'
+      - name: Ensure Redis CLI
+        run: command -v redis-cli >/dev/null || (sudo apt-get update && sudo apt-get install -y redis-tools)
+      - name: Verify Redis cache hit path
+        run: |
+          redis-cli -h localhost DEL 'phone:v1:+84705899899'
+          curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899' >/tmp/first.json
+          redis-cli -h localhost EXISTS 'phone:v1:+84705899899' | grep -Fx "1"
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "UPDATE phone_numbers SET verification_status='disputed' WHERE e164='+84705899899';"
+          curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899' >/tmp/cached.json
+          grep -q '"verification_status":"verified"' /tmp/cached.json
+          redis-cli -h localhost DEL 'phone:v1:+84705899899'
+          curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899' >/tmp/refreshed.json
+          grep -q '"verification_status":"disputed"' /tmp/refreshed.json
+      - name: Evaluate SEO quality
+        run: go run ./cmd/seo-evaluate
+      - name: Verify SEO quality decision
+        run: |
+          STATUS=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT seo_status || '|' || seo_reason FROM phone_numbers WHERE e164='+84705899899';")
+          echo "$STATUS" | grep -Fx "noindex|insufficient_quality"
+      - name: Reindex phone data into OpenSearch
+        run: go run ./cmd/reindex
+      - name: Verify OpenSearch phone document
+        run: |
+          for i in $(seq 1 15); do
+            DOC=$(curl -fsS -H 'Content-Type: application/json' 'http://localhost:9200/phone_numbers/_search' \
+              -d '{"query":{"term":{"e164":"+84705899899"}}}' || true)
+            echo "$DOC"
+            if echo "$DOC" | grep -q '"+84705899899"' && echo "$DOC" | grep -q '"verification_status":"disputed"'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "OpenSearch document was not searchable after reindex"
+          exit 1
+      - name: Verify unknown phone response
+        run: |
+          CODE=$(curl -sS -o /tmp/not-found.json -w '%{http_code}' 'http://localhost:18080/v1/phone/%2B84999999999')
+          test "$CODE" = "404"
+          grep -q '"identified":false' /tmp/not-found.json
+      - name: API logs on failure
+        if: failure()
+        run: cat /tmp/sodienthoai-api.log || true
