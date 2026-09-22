@@ -19,4 +19,5 @@ type Profile struct {
 	Signals         ProfileSignals `json:"signals"`
 	Identified      bool           `json:"identified"`
 	Disputed        bool           `json:"disputed"`
+	Footprint       FootprintSummary `json:"footprint"`
 }
