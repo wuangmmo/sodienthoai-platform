@@ -53,7 +53,13 @@ type LookupResult struct {
 func (s Service) Lookup(ctx context.Context, e164 string) (LookupResult, error) {
 	n, err := s.Find(ctx, e164)
 	if err != nil {
-		if IsNotFound(err) { _ = s.Repository.RecordLookup(ctx, e164, countryFromE164(e164), nil, false) }
+		if IsNotFound(err) {
+			country,calling,national := splitNormalized(e164)
+			discovered,createErr := s.Repository.EnsureDiscovered(ctx,e164,country,calling,national)
+			if createErr != nil { return LookupResult{}, createErr }
+			_ = s.Repository.RecordLookup(ctx,e164,country,&discovered.ID,false)
+			return LookupResult{Number:discovered,Identities:[]Identity{},Identified:false},nil
+		}
 		return LookupResult{}, err
 	}
 	identities, err := s.Repository.IdentitiesByPhoneID(ctx, n.ID)
@@ -62,7 +68,7 @@ func (s Service) Lookup(ctx context.Context, e164 string) (LookupResult, error) 
 	return LookupResult{Number:n, Identities:identities, Identified:len(identities)>0}, nil
 }
 
-func countryFromE164(e164 string) string {
-	if len(e164) >= 3 && e164[:3] == "+84" { return "VN" }
-	return ""
+func splitNormalized(e164 string)(country,calling,national string){
+ if len(e164)>=3 && e164[:3]=="+84" { return "VN","84",e164[3:] }
+ return "ZZ","",e164
 }
