@@ -12,15 +12,14 @@ import (
 type SEOHandler struct{ Repository phone.Repository }
 
 func (h SEOHandler) Sitemap(w http.ResponseWriter,r *http.Request){
-	limit:=50000; after:=r.URL.Query().Get("after")
+	limit:=50000; page:=0
 	if raw:=r.URL.Query().Get("limit");raw!="" { if n,err:=strconv.Atoi(raw);err==nil { limit=n } }
+	if raw:=r.URL.Query().Get("page");raw!="" { if n,err:=strconv.Atoi(raw);err==nil&&n>=0 { page=n } }
 	if limit<1||limit>50000 { limit=50000 }
 	ctx,cancel:=context.WithTimeout(r.Context(),5*time.Second);defer cancel()
-	items,err:=h.Repository.SitemapPage(ctx,limit,after)
+	items,err:=h.Repository.SitemapPage(ctx,limit,page*limit)
 	if err!=nil { writeJSON(w,http.StatusInternalServerError,map[string]string{"error":"internal_error"});return }
-	next:=""
-	if len(items)>0 { next=items[len(items)-1].E164 }
-	writeJSON(w,http.StatusOK,map[string]any{"data":items,"next_cursor":next,"limit":limit})
+	writeJSON(w,http.StatusOK,map[string]any{"data":items,"page":page,"limit":limit})
 }
 
 func (h SEOHandler) SitemapCount(w http.ResponseWriter,r *http.Request){
