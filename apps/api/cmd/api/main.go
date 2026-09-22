@@ -56,6 +56,7 @@ func main() {
 	moderation := httpserver.ModerationHandler{Service: phoneHandler.Service, Token: cfg.AdminAPIToken}
 	mux.HandleFunc("PATCH /v1/admin/reports/{id}", moderation.Report)
 	mux.HandleFunc("PATCH /v1/admin/claims/{id}", moderation.Claim)
+	mux.HandleFunc("PATCH /v1/admin/comments/{id}", moderation.Comment)
 	mux.HandleFunc("POST /v1/admin/claims/{id}/evidence", moderation.Evidence)
 	admin := httpserver.AdminHandler{DB: db, Token: cfg.AdminAPIToken}
 	mux.HandleFunc("GET /v1/admin/dashboard", admin.Dashboard)
