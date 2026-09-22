@@ -1,0 +1,1 @@
+export default function Loading(){return <main className="wrap result"><h1>Đang tải thông tin số điện thoại…</h1><p className="notice">SoDienThoai.com đang kiểm tra dữ liệu xác minh và báo cáo.</p></main>}
