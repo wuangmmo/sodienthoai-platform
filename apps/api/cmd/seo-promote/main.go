@@ -1,0 +1,3 @@
+package main
+import("context";"log";"os";"github.com/wuangmmo/sodienthoai-platform/apps/api/internal/database")
+func main(){ctx:=context.Background();url:=os.Getenv("DATABASE_URL");if url==""{log.Fatal("DATABASE_URL required")};db,err:=database.Open(ctx,url);if err!=nil{log.Fatal(err)};defer db.Close();res,err:=db.ExecContext(ctx,`UPDATE phone_numbers p SET seo_status='indexable',updated_at=NOW() WHERE p.seo_status='noindex' AND p.verification_status='verified' AND p.data_quality_score>=60 AND EXISTS(SELECT 1 FROM phone_identities i WHERE i.phone_number_id=p.id AND i.is_public=TRUE AND i.confidence_score>=70) AND p.verification_status<>'disputed'`);if err!=nil{log.Fatal(err)};n,_:=res.RowsAffected();log.Printf("promoted %d qualified phone pages to indexable",n)}
