@@ -228,10 +228,16 @@ jobs:
         run: go run ./cmd/reindex
       - name: Verify OpenSearch phone document
         run: |
-          DOC=$(curl -fsS 'http://localhost:9200/phone_numbers/_search?q=e164:%2B84705899899')
-          echo "$DOC"
-          echo "$DOC" | grep -q '"+84705899899"'
-          echo "$DOC" | grep -q '"verification_status":"disputed"'
+          for i in $(seq 1 15); do
+            DOC=$(curl -fsS 'http://localhost:9200/phone_numbers/_search?q=e164:%2B84705899899' || true)
+            echo "$DOC"
+            if echo "$DOC" | grep -q '"+84705899899"' && echo "$DOC" | grep -q '"verification_status":"disputed"'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "OpenSearch document was not searchable after reindex"
+          exit 1
       - name: Verify unknown phone response
         run: |
           CODE=$(curl -sS -o /tmp/not-found.json -w '%{http_code}' 'http://localhost:18080/v1/phone/%2B84999999999')
