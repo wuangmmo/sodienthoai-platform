@@ -44,3 +44,8 @@ func(h CommunityHandler) Follows(w http.ResponseWriter,r *http.Request){
 func(h CommunityHandler) Notifications(w http.ResponseWriter,r *http.Request){
  sub:=subject(r);if sub==""{writeJSON(w,401,map[string]string{"error":"user_required"});return};ctx,cancel:=context.WithTimeout(r.Context(),5*time.Second);defer cancel();items,err:=h.Service.Notifications(ctx,sub);if err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return};writeJSON(w,200,map[string]any{"data":items})
 }
+
+
+func(h CommunityHandler) MarkNotificationRead(w http.ResponseWriter,r *http.Request){
+ sub:=subject(r);if sub==""{writeJSON(w,401,map[string]string{"error":"user_required"});return};ctx,cancel:=context.WithTimeout(r.Context(),3*time.Second);defer cancel();if err:=h.Service.MarkNotificationRead(ctx,sub,r.PathValue("id"));err!=nil{writeJSON(w,404,map[string]string{"error":"notification_not_found"});return};writeJSON(w,200,map[string]string{"status":"read"})
+}
