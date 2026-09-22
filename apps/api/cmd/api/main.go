@@ -42,7 +42,7 @@ func main() {
 		Repository: phone.Repository{DB: db},
 		Cache: redisClient,
 		TTL: 10 * time.Minute,
-	}}
+	}, ReporterHashSecret: cfg.ReporterHashSecret}
 	phoneLookup := httpserver.RateLimitByIP(phoneHandler.Get, 120, time.Minute)
 	mux.HandleFunc("GET /v1/phone/{number}", phoneLookup)
 	searchHandler := httpserver.SearchHandler{Repository: phone.Repository{DB: db}, Search: searchClient}
