@@ -36,7 +36,11 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", health.Liveness)
 	mux.HandleFunc("GET /readyz", health.Readiness)
-	phoneHandler := httpserver.PhoneHandler{Repository: phone.Repository{DB: db}}
+	phoneHandler := httpserver.PhoneHandler{Service: phone.Service{
+		Repository: phone.Repository{DB: db},
+		Cache: redisClient,
+		TTL: 10 * time.Minute,
+	}}
 	mux.HandleFunc("GET /v1/phone/{number}", phoneHandler.Get)
 
 	server := &http.Server{
