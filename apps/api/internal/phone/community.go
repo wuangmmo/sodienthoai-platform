@@ -42,3 +42,11 @@ func(s Service) FollowedPhones(ctx context.Context,subject string)([]Number,erro
 func(s Service) Notifications(ctx context.Context,subject string)([]map[string]any,error){
  uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return nil,err};rows,err:=s.Repository.DB.QueryContext(ctx,`SELECT id::text,event_type,payload,created_at,read_at FROM user_notifications WHERE user_id=$1 ORDER BY created_at DESC LIMIT 100`,uid);if err!=nil{return nil,err};defer rows.Close();out:=[]map[string]any{};for rows.Next(){var id,event string;var payload []byte;var created any;var read any;if err:=rows.Scan(&id,&event,&payload,&created,&read);err!=nil{return nil,err};out=append(out,map[string]any{"id":id,"event_type":event,"payload":json.RawMessage(payload),"created_at":created,"read_at":read})};return out,rows.Err()
 }
+
+
+func(s Service) NotifyFollowers(ctx context.Context,phoneID,eventType string,payload any)error{
+ raw,err:=json.Marshal(payload);if err!=nil{return err};_,err=s.Repository.DB.ExecContext(ctx,`INSERT INTO user_notifications(user_id,phone_number_id,event_type,payload) SELECT user_id,$1,$2,$3::jsonb FROM phone_follows WHERE phone_number_id=$1`,phoneID,eventType,string(raw));return err
+}
+func(s Service) MarkNotificationRead(ctx context.Context,subject,id string)error{
+ uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return err};res,err:=s.Repository.DB.ExecContext(ctx,`UPDATE user_notifications SET read_at=COALESCE(read_at,NOW()) WHERE id=$1 AND user_id=$2`,id,uid);if err!=nil{return err};n,_:=res.RowsAffected();if n==0{return ErrInvalidComment};return nil
+}
