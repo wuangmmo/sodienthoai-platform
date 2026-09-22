@@ -10,6 +10,8 @@ type Config struct {
 	DatabaseURL   string
 	RedisAddr     string
 	OpenSearchURL string
+	AppEnv        string
+	AdminAPIToken string
 }
 
 func Load() (Config, error) {
@@ -18,6 +20,8 @@ func Load() (Config, error) {
 		DatabaseURL:   os.Getenv("DATABASE_URL"),
 		RedisAddr:     os.Getenv("REDIS_ADDR"),
 		OpenSearchURL: os.Getenv("OPENSEARCH_URL"),
+		AppEnv:        envOrDefault("APP_ENV", "development"),
+		AdminAPIToken: os.Getenv("ADMIN_API_TOKEN"),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
@@ -27,6 +31,9 @@ func Load() (Config, error) {
 	}
 	if cfg.OpenSearchURL == "" {
 		return Config{}, fmt.Errorf("OPENSEARCH_URL is required")
+	}
+	if cfg.AppEnv == "production" && len(cfg.AdminAPIToken) < 32 {
+		return Config{}, fmt.Errorf("ADMIN_API_TOKEN must be at least 32 characters in production")
 	}
 	return cfg, nil
 }
