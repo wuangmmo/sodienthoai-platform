@@ -1,13 +1,9 @@
 package httpserver
 
 import (
-	"context"
-	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/wuangmmo/sodienthoai-platform/apps/api/internal/phone"
 )
 
 func TestPhoneHandlerRejectsNationalFormatWithoutCountryContext(t *testing.T) {
@@ -20,10 +16,4 @@ func TestPhoneHandlerRejectsNationalFormatWithoutCountryContext(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d", rec.Code)
 	}
-}
-
-func TestLookupSeededPhone(ctx context.Context, db *sql.DB) error {
-	repo := phone.Repository{DB: db}
-	_, err := repo.FindByE164(ctx, "+84705899899")
-	return err
 }
