@@ -212,6 +212,14 @@ jobs:
           redis-cli -h localhost DEL 'phone:v1:+84705899899'
           curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899' >/tmp/refreshed.json
           grep -q '"verification_status":"disputed"' /tmp/refreshed.json
+      - name: Reindex phone data into OpenSearch
+        run: go run ./cmd/reindex
+      - name: Verify OpenSearch phone document
+        run: |
+          DOC=$(curl -fsS 'http://localhost:9200/phone_numbers/_search?q=e164:%2B84705899899')
+          echo "$DOC"
+          echo "$DOC" | grep -q '"+84705899899"'
+          echo "$DOC" | grep -q '"verification_status":"disputed"'
       - name: Verify unknown phone response
         run: |
           CODE=$(curl -sS -o /tmp/not-found.json -w '%{http_code}' 'http://localhost:18080/v1/phone/%2B84999999999')
