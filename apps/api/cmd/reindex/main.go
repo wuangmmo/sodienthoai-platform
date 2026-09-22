@@ -61,7 +61,7 @@ data_quality_score::float8,last_seen_at FROM phone_numbers ORDER BY id`)
 		var d document
 		if err:=rows.Scan(&d.ID,&d.E164,&d.CountryCode,&d.CallingCode,&d.NationalNumber,&d.NumberType,
 			&d.VerificationStatus,&d.SEOStatus,&d.SpamScore,&d.ReportCount,&d.SearchCount,&d.DataQualityScore,&d.LastSeenAt); err!=nil { log.Fatal(err) }
-		meta,_:=json.Marshal(map[string]any{"index":map[string]string{"_index":search.PhoneIndex,"_id":d.ID}})
+		meta,_:=json.Marshal(map[string]any{"index":map[string]string{"_index":search.PhoneIndexV1,"_id":d.ID}})
 		body,err:=json.Marshal(d); if err!=nil { log.Fatal(err) }
 		buf.Write(meta); buf.WriteByte('\n'); buf.Write(body); buf.WriteByte('\n')
 		batch++
@@ -69,5 +69,6 @@ data_quality_score::float8,last_seen_at FROM phone_numbers ORDER BY id`)
 	}
 	if err:=rows.Err(); err!=nil { log.Fatal(err) }
 	flush()
-	log.Printf("reindexed %d phone numbers in batches of up to %d",count,batchSize)
+	if err:=client.SwapPhoneAlias(ctx); err!=nil { log.Fatal(err) }
+	log.Printf("reindexed %d phone numbers in batches of up to %d and activated alias %s",count,batchSize,search.PhoneIndex)
 }

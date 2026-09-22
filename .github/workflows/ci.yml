@@ -23,7 +23,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
-      - run: go mod tidy
+      - name: Verify Go dependency lock
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
       - name: Upload generated Go dependency files
         uses: actions/upload-artifact@v4
         with:
@@ -61,7 +64,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
-      - run: go mod tidy
+      - name: Verify Go dependency lock
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
       - name: Apply migrations
         run: go run ./cmd/migrate
       - name: Verify core schema
@@ -97,11 +103,6 @@ jobs:
         run: |
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
-      - name: Upload generated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-package-lock
-          path: apps/web/package-lock.json
       - run: npm ci
       - run: npm run build
 
@@ -109,13 +110,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Prepare generated dependencies
+      - name: Prepare web dependency lock
         run: |
           cd apps/web
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
-          cd ../api
-          go mod tidy
       - name: Build API image
         run: docker build -t sodienthoai-api:ci apps/api
       - name: Build Web image
@@ -171,7 +170,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
-      - run: go mod tidy
+      - name: Verify Go dependency lock
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum
       - name: Wait for OpenSearch
         run: |
           for i in $(seq 1 30); do

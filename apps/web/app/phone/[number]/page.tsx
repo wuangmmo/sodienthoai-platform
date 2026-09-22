@@ -11,9 +11,9 @@ async function lookup(number:string,country=""):Promise<{data?:PhoneData;notFoun
   return res.json();
 }
 function canonical(number:string){return "/phone/"+encodeURIComponent(number)}
-export async function generateMetadata({params}:{params:Promise<{number:string}>}):Promise<Metadata>{
-  const {number}=await params; const decoded=decodeURIComponent(number); let result;
-  try{result=await lookup(decoded)}catch{return{title:"Tra cứu số điện thoại",robots:{index:false,follow:false}}}
+export async function generateMetadata({params,searchParams}:{params:Promise<{number:string}>;searchParams:Promise<{country?:string}>}):Promise<Metadata>{
+  const {number}=await params; const {country}=await searchParams; const decoded=decodeURIComponent(number); let result;
+  try{result=await lookup(decoded,country||"")}catch{return{title:"Tra cứu số điện thoại",robots:{index:false,follow:false}}}
   if(result.notFound)return{title:`Tra cứu ${decoded}`,description:`Kiểm tra thông tin số điện thoại ${decoded} trên SoDienThoai.com.`,alternates:{canonical:canonical(decoded)},robots:{index:false,follow:true}};
   const p=result.data!; const indexable=p.seo_status==="indexable"||p.seo_status==="indexed";
   return{title:`Số điện thoại ${p.e164}`,description:`Tra cứu thông tin, trạng thái xác minh và báo cáo của số điện thoại ${p.e164}.`,alternates:{canonical:canonical(p.e164)},robots:{index:indexable,follow:true}};
