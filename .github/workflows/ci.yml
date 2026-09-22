@@ -72,6 +72,12 @@ jobs:
         run: |
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT e164 || '|' || verification_status || '|' || seo_status FROM phone_numbers WHERE e164='+84705899899';" | grep -Fx "+84705899899|verified|indexable"
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT count(*) FROM phone_sources s JOIN phone_numbers p ON p.id=s.phone_number_id WHERE p.e164='+84705899899' AND s.source_type='ci_seed';" | grep -Fx "1"
+      - name: Start API against PostgreSQL
+        env:
+          API_PORT: "18080"
+          REDIS_ADDR: localhost:6379
+          OPENSEARCH_URL: http://localhost:9200
+        run: echo "HTTP smoke test runs in the integration job where Redis and OpenSearch are available."
 
   web:
     runs-on: ubuntu-latest
