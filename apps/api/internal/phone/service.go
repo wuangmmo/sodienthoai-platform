@@ -77,3 +77,18 @@ func splitNormalized(e164 string)(country,calling,national string){
  if len(e164)>=3 && e164[:3]=="+84" { return "VN","84",e164[3:] }
  return "ZZ","",e164
 }
+
+
+func (s Service) Profile(ctx context.Context, e164 string) (Profile, error) {
+	result, err := s.Lookup(ctx, e164)
+	if err != nil { return Profile{}, err }
+	signals, err := s.Repository.ProfileSignalsByPhoneID(ctx, result.Number.ID)
+	if err != nil { return Profile{}, err }
+	disputed, err := s.Repository.HasOpenIdentityDispute(ctx, result.Number.ID)
+	if err != nil { return Profile{}, err }
+	var primary *Identity
+	for i := range result.Identities {
+		if result.Identities[i].IsPrimary { primary = &result.Identities[i]; break }
+	}
+	return Profile{Number:result.Number,PrimaryIdentity:primary,Identities:result.Identities,Signals:signals,Identified:result.Identified,Disputed:disputed},nil
+}

@@ -46,6 +46,7 @@ func main() {
 	}, ReporterHashSecret: cfg.ReporterHashSecret}
 	phoneLookup := httpserver.RateLimitByIP(phoneHandler.Get, 120, time.Minute)
 	mux.HandleFunc("GET /v1/phone/{number}", phoneLookup)
+	mux.HandleFunc("GET /v1/phone/{number}/profile", httpserver.RateLimitByIP(phoneHandler.Profile, 120, time.Minute))
 	searchHandler := httpserver.SearchHandler{Repository: phone.Repository{DB: db}, Search: searchClient}
 	mux.HandleFunc("GET /v1/search", httpserver.RateLimitByIP(searchHandler.Get, 120, time.Minute))
 	mux.HandleFunc("POST /v1/phone/{number}/reports", httpserver.RateLimitByIP(phoneHandler.Report, 20, time.Hour))

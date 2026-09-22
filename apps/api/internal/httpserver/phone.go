@@ -42,3 +42,13 @@ func (h PhoneHandler) Claim(w http.ResponseWriter,r *http.Request){
  if errors.Is(err,phone.ErrInvalidClaim){writeJSON(w,400,map[string]string{"error":"invalid_claim"});return};if phone.IsNotFound(err){writeJSON(w,404,map[string]string{"error":"phone_number_not_found"});return};if err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return}
  writeJSON(w,202,map[string]string{"status":"pending_verification"})
 }
+
+
+func (h PhoneHandler) Profile(w http.ResponseWriter,r *http.Request){
+	e164,err:=phone.NormalizeForCountry(r.PathValue("number"),r.URL.Query().Get("country"))
+	if err!=nil{writeJSON(w,http.StatusBadRequest,map[string]string{"error":"invalid_phone_number"});return}
+	ctx,cancel:=context.WithTimeout(r.Context(),2*time.Second);defer cancel()
+	profile,err:=h.Service.Profile(ctx,e164)
+	if err!=nil{writeJSON(w,http.StatusInternalServerError,map[string]string{"error":"internal_error"});return}
+	writeJSON(w,http.StatusOK,map[string]any{"data":profile})
+}

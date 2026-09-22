@@ -126,3 +126,24 @@ func (r Repository) FindByID(ctx context.Context,id string)(Number,error){
  var n Number;err:=r.DB.QueryRowContext(ctx,q,id).Scan(&n.ID,&n.CountryCode,&n.CallingCode,&n.NationalNumber,&n.E164,&n.NumberType,&n.VerificationStatus,&n.SEOStatus,&n.SpamScore,&n.ReportCount,&n.SearchCount,&n.DataQualityScore,&n.FirstSeenAt,&n.LastSeenAt)
  if errors.Is(err,sql.ErrNoRows){return Number{},ErrNotFound};return n,err
 }
+
+
+func (r Repository) ProfileSignalsByPhoneID(ctx context.Context, phoneID string) (ProfileSignals, error) {
+	var s ProfileSignals
+	err := r.DB.QueryRowContext(ctx, `
+SELECT identity_confidence::float8, source_diversity, footprint_source_count,
+       footprint_domain_count, footprint_category_count,
+       footprint_first_detected_at, footprint_last_detected_at
+FROM phone_profile_signals WHERE phone_number_id=$1`, phoneID).Scan(
+		&s.IdentityConfidence,&s.SourceDiversity,&s.FootprintSourceCount,
+		&s.FootprintDomainCount,&s.FootprintCategoryCount,
+		&s.FirstDetectedAt,&s.LastDetectedAt)
+	if errors.Is(err, sql.ErrNoRows) { return ProfileSignals{}, nil }
+	return s, err
+}
+
+func (r Repository) HasOpenIdentityDispute(ctx context.Context, phoneID string) (bool, error) {
+	var exists bool
+	err := r.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM phone_identity_disputes WHERE phone_number_id=$1 AND status='open')`, phoneID).Scan(&exists)
+	return exists, err
+}
