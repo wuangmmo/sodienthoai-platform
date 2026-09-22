@@ -45,7 +45,7 @@ func(s Service) Notifications(ctx context.Context,subject string)([]map[string]a
 
 
 func(s Service) NotifyFollowers(ctx context.Context,phoneID,eventType string,payload any)error{
- raw,err:=json.Marshal(payload);if err!=nil{return err};_,err=s.Repository.DB.ExecContext(ctx,`INSERT INTO user_notifications(user_id,phone_number_id,event_type,payload) SELECT user_id,$1,$2,$3::jsonb FROM phone_follows WHERE phone_number_id=$1`,phoneID,eventType,string(raw));return err
+ raw,err:=json.Marshal(payload);if err!=nil{return err};_,err=s.Repository.DB.ExecContext(ctx,`INSERT INTO user_notifications(user_id,phone_number_id,event_type,payload) SELECT user_id,$1,$2,$3::jsonb FROM phone_follows WHERE phone_number_id=$1 ON CONFLICT DO NOTHING`,phoneID,eventType,string(raw));return err
 }
 func(s Service) MarkNotificationRead(ctx context.Context,subject,id string)error{
  uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return err};res,err:=s.Repository.DB.ExecContext(ctx,`UPDATE user_notifications SET read_at=COALESCE(read_at,NOW()) WHERE id=$1 AND user_id=$2`,id,uid);if err!=nil{return err};n,_:=res.RowsAffected();if n==0{return ErrInvalidComment};return nil
