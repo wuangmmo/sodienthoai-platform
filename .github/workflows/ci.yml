@@ -65,6 +65,13 @@ jobs:
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "SELECT e164, seo_status, verification_status FROM phone_numbers LIMIT 0;"
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "SELECT phone_number_id, source_type, confidence FROM phone_sources LIMIT 0;"
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "SELECT version FROM schema_migrations ORDER BY version;"
+      - name: Seed lookup fixture
+        working-directory: .
+        run: PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -f database/testdata/seed.sql
+      - name: Verify seeded phone
+        run: |
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT e164 || '|' || verification_status || '|' || seo_status FROM phone_numbers WHERE e164='+84705899899';" | grep -Fx "+84705899899|verified|indexable"
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT count(*) FROM phone_sources s JOIN phone_numbers p ON p.id=s.phone_number_id WHERE p.e164='+84705899899' AND s.source_type='ci_seed';" | grep -Fx "1"
 
   web:
     runs-on: ubuntu-latest
