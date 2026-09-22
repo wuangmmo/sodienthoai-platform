@@ -41,3 +41,19 @@ func (s Service) ImportContacts(ctx context.Context,ownerKey string,items []Cont
  }
  return out,nil
 }
+
+
+func(s Service) ListContacts(ctx context.Context,ownerKey,status string,limit int)([]Contact,error){
+ if limit<1||limit>500{limit=100};status=strings.ToLower(strings.TrimSpace(status))
+ rows,err:=s.Repository.DB.QueryContext(ctx,`SELECT c.id::text,c.local_name,c.raw_phone,c.normalized_e164,c.phone_number_id::text,c.match_status::text,n.reputation_label
+FROM private_contacts c JOIN contact_books b ON b.id=c.contact_book_id LEFT JOIN phone_numbers n ON n.id=c.phone_number_id
+WHERE b.owner_key=$1 AND ($2='' OR c.match_status::text=$2) ORDER BY c.updated_at DESC LIMIT $3`,ownerKey,status,limit);if err!=nil{return nil,err};defer rows.Close()
+ out:=[]Contact{};for rows.Next(){var x Contact;if err:=rows.Scan(&x.ID,&x.LocalName,&x.RawPhone,&x.E164,&x.PhoneID,&x.MatchStatus,&x.ReputationLabel);err!=nil{return nil,err};if x.PhoneID!=nil{ids,_:=s.Repository.IdentitiesByPhoneID(ctx,*x.PhoneID);for i:=range ids{if ids[i].IsPrimary{x.PublicIdentity=&ids[i];break}}};out=append(out,x)};return out,rows.Err()
+}
+
+func(s Service) RescanContacts(ctx context.Context,ownerKey string)(int,error){
+ rows,err:=s.Repository.DB.QueryContext(ctx,`SELECT c.id::text,c.local_name,c.normalized_e164 FROM private_contacts c JOIN contact_books b ON b.id=c.contact_book_id WHERE b.owner_key=$1 AND c.normalized_e164 IS NOT NULL`,ownerKey);if err!=nil{return 0,err};defer rows.Close()
+ type item struct{id,name,e164 string};items:=[]item{};for rows.Next(){var x item;var name *string;if err:=rows.Scan(&x.id,&name,&x.e164);err!=nil{return 0,err};if name!=nil{x.name=*name};items=append(items,x)}
+ changed:=0;for _,x:=range items{n,err:=s.Repository.FindByE164(ctx,x.e164);status:="unknown";var pid any=nil;if err==nil{pid=n.ID;ids,_:=s.Repository.IdentitiesByPhoneID(ctx,n.ID);var primary *Identity;for i:=range ids{if ids[i].IsPrimary{primary=&ids[i];break}};disputed,_:=s.Repository.HasOpenIdentityDispute(ctx,n.ID);status=contactMatch(x.name,primary,disputed)};res,err:=s.Repository.DB.ExecContext(ctx,`UPDATE private_contacts SET phone_number_id=$2,match_status=$3,last_checked_at=NOW(),updated_at=NOW() WHERE id=$1 AND (phone_number_id IS DISTINCT FROM $2 OR match_status::text<>$3)`,x.id,pid,status);if err!=nil{return changed,err};if n,_:=res.RowsAffected();n>0{changed++}}
+ return changed,nil
+}
