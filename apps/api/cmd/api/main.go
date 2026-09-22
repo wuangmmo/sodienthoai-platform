@@ -46,6 +46,8 @@ func main() {
 	}}
 	phoneLookup := httpserver.RateLimitByIP(phoneHandler.Get, 120, time.Minute)
 	mux.HandleFunc("GET /v1/phone/{number}", phoneLookup)
+	mux.HandleFunc("POST /v1/phone/{number}/reports", httpserver.RateLimitByIP(phoneHandler.Report, 20, time.Hour))
+	mux.HandleFunc("POST /v1/phone/{number}/claims", httpserver.RateLimitByIP(phoneHandler.Claim, 10, time.Hour))
 	seoHandler := httpserver.SEOHandler{Repository: phone.Repository{DB: db}}
 	mux.HandleFunc("GET /v1/seo/sitemap", seoHandler.Sitemap)
 	mux.HandleFunc("GET /v1/seo/sitemap/count", seoHandler.SitemapCount)
