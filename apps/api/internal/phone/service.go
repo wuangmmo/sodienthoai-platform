@@ -90,7 +90,9 @@ func (s Service) Profile(ctx context.Context, e164 string) (Profile, error) {
 	for i := range result.Identities {
 		if result.Identities[i].IsPrimary { primary = &result.Identities[i]; break }
 	}
-	return Profile{Number:result.Number,PrimaryIdentity:primary,Identities:result.Identities,Signals:signals,Identified:result.Identified,Disputed:disputed},nil
+	footprint, err := s.Repository.FootprintByPhoneID(ctx, result.Number.ID, 10)
+	if err != nil { return Profile{}, err }
+	return Profile{Number:result.Number,PrimaryIdentity:primary,Identities:result.Identities,Signals:signals,Identified:result.Identified,Disputed:disputed,Footprint:footprint},nil
 }
 
 
