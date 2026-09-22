@@ -56,3 +56,21 @@ func (c *Client) IndexPhone(ctx context.Context, id string, document []byte) err
 	}
 	return nil
 }
+
+
+func (c *Client) BulkIndexPhones(ctx context.Context, payload []byte) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/_bulk", strings.NewReader(string(payload)))
+	if err != nil { return err }
+	req.Header.Set("Content-Type", "application/x-ndjson")
+	resp, err := c.http.Do(req)
+	if err != nil { return err }
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("opensearch bulk returned %s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+	var result struct { Errors bool `json:"errors"` }
+	if err := json.Unmarshal(body, &result); err != nil { return err }
+	if result.Errors { return fmt.Errorf("opensearch bulk response contains item errors") }
+	return nil
+}
