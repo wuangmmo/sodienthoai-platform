@@ -229,7 +229,8 @@ jobs:
       - name: Verify OpenSearch phone document
         run: |
           for i in $(seq 1 15); do
-            DOC=$(curl -fsS 'http://localhost:9200/phone_numbers/_search?q=e164:%2B84705899899' || true)
+            DOC=$(curl -fsS -H 'Content-Type: application/json' 'http://localhost:9200/phone_numbers/_search' \
+              -d '{"query":{"term":{"e164":"+84705899899"}}}' || true)
             echo "$DOC"
             if echo "$DOC" | grep -q '"+84705899899"' && echo "$DOC" | grep -q '"verification_status":"disputed"'; then
               exit 0
