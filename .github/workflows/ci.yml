@@ -201,6 +201,17 @@ jobs:
           echo "$BODY" | grep -q '"e164":"+84705899899"'
           echo "$BODY" | grep -q '"verification_status":"verified"'
           echo "$BODY" | grep -q '"seo_status":"indexable"'
+      - name: Verify Redis cache hit path
+        run: |
+          redis-cli -h localhost DEL 'phone:v1:+84705899899'
+          curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899' >/tmp/first.json
+          redis-cli -h localhost EXISTS 'phone:v1:+84705899899' | grep -Fx "1"
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "UPDATE phone_numbers SET verification_status='disputed' WHERE e164='+84705899899';"
+          curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899' >/tmp/cached.json
+          grep -q '"verification_status":"verified"' /tmp/cached.json
+          redis-cli -h localhost DEL 'phone:v1:+84705899899'
+          curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899' >/tmp/refreshed.json
+          grep -q '"verification_status":"disputed"' /tmp/refreshed.json
       - name: Verify unknown phone response
         run: |
           CODE=$(curl -sS -o /tmp/not-found.json -w '%{http_code}' 'http://localhost:18080/v1/phone/%2B84999999999')
