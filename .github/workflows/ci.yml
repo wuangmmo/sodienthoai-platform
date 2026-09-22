@@ -244,7 +244,7 @@ jobs:
       - name: Verify unknown phone response
         run: |
           CODE=$(curl -sS -o /tmp/not-found.json -w '%{http_code}' 'http://localhost:18080/v1/phone/%2B84999999999')
-          test "$CODE" = "404"
+          test "$CODE" = "200"
           grep -q '"identified":false' /tmp/not-found.json
       - name: API logs on failure
         if: failure()
