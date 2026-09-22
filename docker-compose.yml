@@ -5,7 +5,7 @@ services:
       POSTGRES_DB: sodienthoai
       POSTGRES_USER: sodienthoai
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sodienthoai}
-    ports: ["5432:5432"]
+    ports: ["127.0.0.1:5432:5432"]
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -16,7 +16,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    ports: ["127.0.0.1:6379:6379"]
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -32,7 +32,7 @@ services:
       discovery.type: single-node
       DISABLE_SECURITY_PLUGIN: "true"
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
-    ports: ["9200:9200"]
+    ports: ["127.0.0.1:9200:9200"]
     volumes:
       - opensearch_data:/usr/share/opensearch/data
     healthcheck:
