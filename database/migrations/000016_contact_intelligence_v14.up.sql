@@ -35,3 +35,13 @@ CREATE TABLE contact_identity_actions (
  completed_at TIMESTAMPTZ
 );
 CREATE INDEX idx_contact_identity_actions_contact ON contact_identity_actions(contact_id,created_at DESC);
+
+CREATE TABLE contact_change_events (
+ id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ contact_id UUID NOT NULL REFERENCES private_contacts(id) ON DELETE CASCADE,
+ old_match_status identity_match_status,
+ new_match_status identity_match_status NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ seen_at TIMESTAMPTZ
+);
+CREATE INDEX idx_contact_change_events_unseen ON contact_change_events(contact_id,created_at DESC) WHERE seen_at IS NULL;
