@@ -28,6 +28,7 @@ type document struct {
 	SearchCount int64 `json:"search_count"`
 	DataQualityScore float64 `json:"data_quality_score"`
 	LastSeenAt time.Time `json:"last_seen_at"`
+	DisplayName *string `json:"display_name,omitempty"`
 }
 
 func main() {
@@ -46,7 +47,7 @@ func main() {
 
 	rows,err:=db.QueryContext(ctx,`SELECT id::text,e164,country_code,calling_code,national_number,number_type,
 verification_status::text,seo_status::text,spam_score::float8,report_count,search_count,
-data_quality_score::float8,last_seen_at FROM phone_numbers ORDER BY id`)
+data_quality_score::float8,last_seen_at,(SELECT display_name FROM phone_identities i WHERE i.phone_number_id=phone_numbers.id AND i.is_public=TRUE ORDER BY i.is_primary DESC,i.confidence_score DESC LIMIT 1) FROM phone_numbers ORDER BY id`)
 	if err!=nil { log.Fatal(err) }; defer rows.Close()
 
 	var buf bytes.Buffer
@@ -60,7 +61,7 @@ data_quality_score::float8,last_seen_at FROM phone_numbers ORDER BY id`)
 	for rows.Next() {
 		var d document
 		if err:=rows.Scan(&d.ID,&d.E164,&d.CountryCode,&d.CallingCode,&d.NationalNumber,&d.NumberType,
-			&d.VerificationStatus,&d.SEOStatus,&d.SpamScore,&d.ReportCount,&d.SearchCount,&d.DataQualityScore,&d.LastSeenAt); err!=nil { log.Fatal(err) }
+			&d.VerificationStatus,&d.SEOStatus,&d.SpamScore,&d.ReportCount,&d.SearchCount,&d.DataQualityScore,&d.LastSeenAt,&d.DisplayName); err!=nil { log.Fatal(err) }
 		meta,_:=json.Marshal(map[string]any{"index":map[string]string{"_index":search.PhoneIndexV1,"_id":d.ID}})
 		body,err:=json.Marshal(d); if err!=nil { log.Fatal(err) }
 		buf.Write(meta); buf.WriteByte('\n'); buf.Write(body); buf.WriteByte('\n')
