@@ -99,6 +99,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Generate dependency lock
+        run: |
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts
       - run: npm ci
       - run: npm run build
 
@@ -106,6 +110,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare web dependency lock
+        run: |
+          cd apps/web
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts
       - name: Build API image
         run: docker build -t sodienthoai-api:ci apps/api
       - name: Build Web image
