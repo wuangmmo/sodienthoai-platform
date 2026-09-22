@@ -117,7 +117,8 @@ ON CONFLICT(e164) DO UPDATE SET last_seen_at=NOW()`,countryCode,callingCode,nati
 func (r Repository) RefreshDerivedStatus(ctx context.Context, phoneID string) error {
  n,err:=r.FindByID(ctx,phoneID);if err!=nil{return err}
  ids,err:=r.IdentitiesByPhoneID(ctx,phoneID);if err!=nil{return err}
- _,err=r.DB.ExecContext(ctx,"UPDATE phone_numbers SET seo_status=$2,updated_at=NOW() WHERE id=$1",phoneID,SEOStatusFor(n,ids))
+ trust:=TrustScore(n,ids)
+ _,err=r.DB.ExecContext(ctx,"UPDATE phone_numbers SET seo_status=$2,trust_score=$3,reputation_updated_at=NOW(),updated_at=NOW() WHERE id=$1",phoneID,SEOStatusFor(n,ids),trust)
  return err
 }
 func (r Repository) FindByID(ctx context.Context,id string)(Number,error){
