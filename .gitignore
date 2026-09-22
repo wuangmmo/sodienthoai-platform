@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+vendor/
+
+# builds
+.next/
+dist/
+bin/
+coverage/
+
+# environment / secrets
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+
+# local data
+data/
+*.log
