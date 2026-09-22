@@ -4,6 +4,9 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/wuangmmo/sodienthoai-platform/apps/api/internal/cache"
@@ -51,6 +54,18 @@ func main() {
 		ReadHeaderTimeout: 5*time.Second, ReadTimeout: 10*time.Second,
 		WriteTimeout: 15*time.Second, IdleTimeout: 60*time.Second,
 	}
-	log.Printf("sodienthoai api listening on :%s", cfg.Port)
-	log.Fatal(server.ListenAndServe())
+	serverErr := make(chan error, 1)
+	go func() {
+		log.Printf("sodienthoai api listening on :%s", cfg.Port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed { serverErr <- err }
+	}()
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	select {
+	case err := <-serverErr: log.Fatal(err)
+	case <-sigCtx.Done():
+	}
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil { log.Printf("server shutdown failed: %v", err) }
 }
