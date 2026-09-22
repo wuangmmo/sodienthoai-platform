@@ -57,6 +57,8 @@ func main() {
 	admin := httpserver.AdminHandler{DB: db, Token: os.Getenv("ADMIN_API_TOKEN")}
 	mux.HandleFunc("GET /v1/admin/dashboard", admin.Dashboard)
 	mux.HandleFunc("GET /v1/admin/reports", admin.Reports)
+	mux.HandleFunc("GET /v1/admin/claims", admin.Claims)
+	mux.HandleFunc("GET /v1/admin/audit", admin.Audit)
 	seoHandler := httpserver.SEOHandler{Repository: phone.Repository{DB: db}}
 	mux.HandleFunc("GET /v1/seo/sitemap", seoHandler.Sitemap)
 	mux.HandleFunc("GET /v1/seo/sitemap/count", seoHandler.SitemapCount)
