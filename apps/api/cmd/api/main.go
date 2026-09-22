@@ -10,6 +10,7 @@ import (
 	"github.com/wuangmmo/sodienthoai-platform/apps/api/internal/config"
 	"github.com/wuangmmo/sodienthoai-platform/apps/api/internal/database"
 	"github.com/wuangmmo/sodienthoai-platform/apps/api/internal/httpserver"
+	"github.com/wuangmmo/sodienthoai-platform/apps/api/internal/phone"
 	"github.com/wuangmmo/sodienthoai-platform/apps/api/internal/search"
 )
 
@@ -35,6 +36,8 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", health.Liveness)
 	mux.HandleFunc("GET /readyz", health.Readiness)
+	phoneHandler := httpserver.PhoneHandler{Repository: phone.Repository{DB: db}}
+	mux.HandleFunc("GET /v1/phone/{number}", phoneHandler.Get)
 
 	server := &http.Server{
 		Addr: ":" + cfg.Port, Handler: mux,
