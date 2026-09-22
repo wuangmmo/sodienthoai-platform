@@ -80,6 +80,8 @@ func main() {
 	mux.HandleFunc("GET /v1/me/follows", community.Follows)
 	mux.HandleFunc("GET /v1/me/notifications", community.Notifications)
 	mux.HandleFunc("PATCH /v1/me/notifications/{id}/read", community.MarkNotificationRead)
+	mux.HandleFunc("GET /v1/me/notifications/summary", community.NotificationSummary)
+	mux.HandleFunc("PATCH /v1/me/notifications/read-all", community.MarkAllNotificationsRead)
 	seoHandler := httpserver.SEOHandler{Repository: phone.Repository{DB: db}}
 	mux.HandleFunc("GET /v1/seo/sitemap", seoHandler.Sitemap)
 	mux.HandleFunc("GET /v1/seo/sitemap/count", seoHandler.SitemapCount)
