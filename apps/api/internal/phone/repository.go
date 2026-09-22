@@ -113,3 +113,15 @@ ON CONFLICT(e164) DO UPDATE SET last_seen_at=NOW()`,countryCode,callingCode,nati
  if err!=nil{return Number{},err}
  return r.FindByE164(ctx,e164)
 }
+
+func (r Repository) RefreshDerivedStatus(ctx context.Context, phoneID string) error {
+ n,err:=r.FindByID(ctx,phoneID);if err!=nil{return err}
+ ids,err:=r.IdentitiesByPhoneID(ctx,phoneID);if err!=nil{return err}
+ _,err=r.DB.ExecContext(ctx,"UPDATE phone_numbers SET seo_status=$2,updated_at=NOW() WHERE id=$1",phoneID,SEOStatusFor(n,ids))
+ return err
+}
+func (r Repository) FindByID(ctx context.Context,id string)(Number,error){
+ const q="SELECT id::text,country_code,calling_code,national_number,e164,number_type,verification_status::text,seo_status::text,spam_score::float8,report_count,search_count,data_quality_score::float8,first_seen_at,last_seen_at FROM phone_numbers WHERE id=$1"
+ var n Number;err:=r.DB.QueryRowContext(ctx,q,id).Scan(&n.ID,&n.CountryCode,&n.CallingCode,&n.NationalNumber,&n.E164,&n.NumberType,&n.VerificationStatus,&n.SEOStatus,&n.SpamScore,&n.ReportCount,&n.SearchCount,&n.DataQualityScore,&n.FirstSeenAt,&n.LastSeenAt)
+ if errors.Is(err,sql.ErrNoRows){return Number{},ErrNotFound};return n,err
+}
