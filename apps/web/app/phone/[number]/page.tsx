@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 type PhoneData={e164:string;country_code:string;calling_code:string;national_number:string;number_type?:string;verification_status:string;seo_status:string;spam_score:number;report_count:number;data_quality_score:number};
 async function lookup(number:string,country=""):Promise<{data?:PhoneData;notFound?:boolean}>{
@@ -22,6 +23,7 @@ export default async function PhonePage({params,searchParams}:{params:Promise<{n
   try{result=await lookup(decodeURIComponent(number),country||"")}catch{return <main className="wrap result"><h1>Không thể tra cứu lúc này</h1><p className="notice">Dịch vụ đang tạm thời không khả dụng. Vui lòng thử lại sau.</p><Link className="back" href="/">← Tra cứu số khác</Link></main>}
   if(result.notFound)return <main className="wrap result"><h1>{decodeURIComponent(number)}</h1><p className="notice">Số điện thoại này chưa được định danh trong dữ liệu SoDienThoai.com.</p><Link className="back" href="/">← Tra cứu số khác</Link></main>;
   const p=result.data!;
+  if(decodeURIComponent(number)!==p.e164) redirect(canonical(p.e164));
   return <main className="wrap result"><h1>{p.e164}</h1><div className="grid">
     <div className="item"><b>Quốc gia</b>{p.country_code}</div><div className="item"><b>Loại số</b>{p.number_type||"Chưa xác định"}</div>
     <div className="item"><b>Xác minh</b>{p.verification_status}</div><div className="item"><b>Báo cáo</b>{p.report_count}</div>
