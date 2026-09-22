@@ -51,3 +51,7 @@ CREATE TABLE comment_reports (
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
  UNIQUE(comment_id,user_id)
 );
+
+CREATE UNIQUE INDEX idx_user_notifications_dedupe
+ON user_notifications(user_id,phone_number_id,event_type,(payload::text))
+WHERE read_at IS NULL;
