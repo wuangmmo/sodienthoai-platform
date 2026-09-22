@@ -1,25 +1,67 @@
 # Local development
 
-## Infrastructure
+## Start the platform
 
-Copy `.env.example` to `.env`, then start the backing services:
+Copy the example environment file and start the local stack:
 
 ```sh
-docker compose up -d postgres redis opensearch
+cp .env.example .env
+docker compose up --build
 ```
 
-Expected local ports:
+Services:
+- Web: http://localhost:3000
+- API: http://localhost:8080
+- PostgreSQL: localhost:5432
+- Redis: localhost:6379
+- OpenSearch: http://localhost:9200
 
-- PostgreSQL: 5432
-- Redis: 6379
-- OpenSearch: 9200
-- Go API: 8080
-- Next.js web: 3000
+## Health endpoints
 
-## Health contract
+- `GET /healthz` is process liveness only.
+- `GET /readyz` checks PostgreSQL, Redis, and OpenSearch and returns 503 until all required dependencies are ready.
 
-The API exposes `GET /healthz` for process-level liveness. Dependency readiness will be added separately so a temporary database/search outage does not incorrectly kill the application process.
+## Database migrations
 
-## Production rule
+Migrations are explicit and are never applied implicitly by the API process.
 
-Local Docker Compose is a development convenience, not the production topology. Production credentials must not use the development values in this repository.
+```sh
+cd apps/api
+DATABASE_URL='postgres://sodienthoai:sodienthoai@localhost:5432/sodienthoai?sslmode=disable' \
+MIGRATIONS_DIR='../../database/migrations' go run ./cmd/migrate
+```
+
+## SEO quality evaluation
+
+```sh
+cd apps/api
+DATABASE_URL='postgres://sodienthoai:sodienthoai@localhost:5432/sodienthoai?sslmode=disable' go run ./cmd/seo-evaluate
+```
+
+Only records meeting the quality rules become `indexable`; database existence alone never makes a phone page indexable.
+
+## Rebuild OpenSearch
+
+PostgreSQL remains the source of truth. OpenSearch can be rebuilt:
+
+```sh
+cd apps/api
+DATABASE_URL='postgres://sodienthoai:sodienthoai@localhost:5432/sodienthoai?sslmode=disable' \
+OPENSEARCH_URL='http://localhost:9200' REINDEX_BATCH_SIZE=1000 go run ./cmd/reindex
+```
+
+## Phone lookup
+
+Vietnamese national input must carry explicit country context:
+
+```text
+GET /v1/phone/0705899899?country=VN
+```
+
+Canonical international input works directly:
+
+```text
+GET /v1/phone/+84705899899
+```
+
+The web application redirects successful national-format lookups to the canonical E.164 phone URL.
