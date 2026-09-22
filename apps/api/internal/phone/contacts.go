@@ -1,0 +1,43 @@
+package phone
+
+import (
+ "context"
+ "strings"
+)
+
+type Contact struct {
+ ID string `json:"id"`
+ LocalName *string `json:"local_name,omitempty"`
+ RawPhone string `json:"raw_phone"`
+ E164 *string `json:"e164,omitempty"`
+ PhoneID *string `json:"phone_id,omitempty"`
+ MatchStatus string `json:"match_status"`
+ ReputationLabel *string `json:"reputation_label,omitempty"`
+ PublicIdentity *Identity `json:"public_identity,omitempty"`
+}
+
+type ContactImportItem struct { Name string `json:"name"`; Phone string `json:"phone"` }
+type ContactImportResult struct { Imported int `json:"imported"`; Skipped int `json:"skipped"`; Contacts []Contact `json:"contacts"` }
+
+func contactMatch(localName string, identity *Identity, disputed bool) string {
+ if disputed{return "disputed"};if identity==nil{return "unknown"}
+ a:=strings.ToLower(strings.TrimSpace(localName));b:=strings.ToLower(strings.TrimSpace(identity.DisplayName))
+ if a==""{return "possible_match"};if a==b{return "match"}
+ if strings.Contains(a,b)||strings.Contains(b,a){return "possible_match"};return "mismatch"
+}
+
+func (s Service) ImportContacts(ctx context.Context,ownerKey string,items []ContactImportItem)(ContactImportResult,error){
+ ownerKey=strings.TrimSpace(ownerKey);if ownerKey==""||len(items)==0||len(items)>5000{return ContactImportResult{},ErrInvalidClaim}
+ var bookID string
+ err:=s.Repository.DB.QueryRowContext(ctx,`INSERT INTO contact_books(owner_key) VALUES($1) RETURNING id::text`,ownerKey).Scan(&bookID);if err!=nil{return ContactImportResult{},err}
+ out:=ContactImportResult{Contacts:[]Contact{}}
+ for _,item:=range items{
+  raw:=strings.TrimSpace(item.Phone);name:=strings.TrimSpace(item.Name);if raw==""{out.Skipped++;continue}
+  e164,nerr:=NormalizeForCountry(raw,"VN");if nerr!=nil{out.Skipped++;continue}
+  n,err:=s.Repository.FindByE164(ctx,e164);var phoneID *string;status:="unknown";var identity *Identity;var rep *string
+  if err==nil{phoneID=&n.ID;rep=&n.ReputationLabel;ids,_:=s.Repository.IdentitiesByPhoneID(ctx,n.ID);disputed,_:=s.Repository.HasOpenIdentityDispute(ctx,n.ID);for i:=range ids{if ids[i].IsPrimary{identity=&ids[i];break}};status=contactMatch(name,identity,disputed)}
+  var id string;err=s.Repository.DB.QueryRowContext(ctx,`INSERT INTO private_contacts(contact_book_id,local_name,raw_phone,normalized_e164,phone_number_id,match_status,last_checked_at) VALUES($1,NULLIF($2,''),$3,$4,$5,$6,NOW()) ON CONFLICT(contact_book_id,normalized_e164) DO UPDATE SET local_name=EXCLUDED.local_name,raw_phone=EXCLUDED.raw_phone,phone_number_id=EXCLUDED.phone_number_id,match_status=EXCLUDED.match_status,last_checked_at=NOW(),updated_at=NOW() RETURNING id::text`,bookID,name,raw,e164,phoneID,status).Scan(&id);if err!=nil{return out,err}
+  e:=e164;out.Contacts=append(out.Contacts,Contact{ID:id,LocalName:nil,RawPhone:raw,E164:&e,PhoneID:phoneID,MatchStatus:status,ReputationLabel:rep,PublicIdentity:identity});out.Imported++
+ }
+ return out,nil
+}
