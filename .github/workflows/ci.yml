@@ -118,3 +118,94 @@ jobs:
         run: docker build -t sodienthoai-web:ci apps/web
       - name: Validate Compose configuration
         run: docker compose config --quiet
+
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sodienthoai
+          POSTGRES_USER: sodienthoai
+          POSTGRES_PASSWORD: sodienthoai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sodienthoai -d sodienthoai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      opensearch:
+        image: opensearchproject/opensearch:2
+        env:
+          discovery.type: single-node
+          plugins.security.disabled: "true"
+          OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+        ports:
+          - 9200:9200
+    env:
+      DATABASE_URL: postgres://sodienthoai:sodienthoai@localhost:5432/sodienthoai?sslmode=disable
+      REDIS_ADDR: localhost:6379
+      OPENSEARCH_URL: http://localhost:9200
+      API_PORT: "18080"
+      MIGRATIONS_DIR: ../../database/migrations
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+      - run: go mod tidy
+      - name: Wait for OpenSearch
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:9200/_cluster/health >/dev/null && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Apply migrations
+        run: go run ./cmd/migrate
+      - name: Seed lookup fixture
+        working-directory: .
+        run: PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -f database/testdata/seed.sql
+      - name: Start API
+        run: |
+          nohup go run ./cmd/api > /tmp/sodienthoai-api.log 2>&1 &
+          echo $! > /tmp/sodienthoai-api.pid
+      - name: Verify readiness
+        run: |
+          for i in $(seq 1 30); do
+            BODY=$(curl -fsS http://localhost:18080/readyz || true)
+            echo "$BODY"
+            echo "$BODY" | grep -q '"status":"ready"' && exit 0
+            sleep 1
+          done
+          cat /tmp/sodienthoai-api.log
+          exit 1
+      - name: Verify phone lookup over HTTP
+        run: |
+          BODY=$(curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899')
+          echo "$BODY"
+          echo "$BODY" | grep -q '"e164":"+84705899899"'
+          echo "$BODY" | grep -q '"verification_status":"verified"'
+          echo "$BODY" | grep -q '"seo_status":"indexable"'
+      - name: Verify unknown phone response
+        run: |
+          CODE=$(curl -sS -o /tmp/not-found.json -w '%{http_code}' 'http://localhost:18080/v1/phone/%2B84999999999')
+          test "$CODE" = "404"
+          grep -q '"identified":false' /tmp/not-found.json
+      - name: API logs on failure
+        if: failure()
+        run: cat /tmp/sodienthoai-api.log || true
