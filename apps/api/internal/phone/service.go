@@ -92,3 +92,14 @@ func (s Service) Profile(ctx context.Context, e164 string) (Profile, error) {
 	}
 	return Profile{Number:result.Number,PrimaryIdentity:primary,Identities:result.Identities,Signals:signals,Identified:result.Identified,Disputed:disputed},nil
 }
+
+
+func (s Service) Footprint(ctx context.Context,e164 string,limit int)(FootprintSummary,error){
+ n,err:=s.Find(ctx,e164);if err!=nil{return FootprintSummary{},err}
+ return s.Repository.FootprintByPhoneID(ctx,n.ID,limit)
+}
+
+func (s Service) RequestFootprintScan(ctx context.Context,e164 string)(string,error){
+ n,err:=s.Find(ctx,e164);if err!=nil{return "",err}
+ return s.Repository.QueueFootprintScan(ctx,n.ID)
+}
