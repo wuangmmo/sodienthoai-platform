@@ -43,18 +43,18 @@ func main() {
 		Repository: phone.Repository{DB: db},
 		Cache: redisClient,
 		TTL: 10 * time.Minute,
-	}}
+	}, ReporterHashSecret: cfg.ReporterHashSecret}
 	phoneLookup := httpserver.RateLimitByIP(phoneHandler.Get, 120, time.Minute)
 	mux.HandleFunc("GET /v1/phone/{number}", phoneLookup)
 	searchHandler := httpserver.SearchHandler{Repository: phone.Repository{DB: db}, Search: searchClient}
 	mux.HandleFunc("GET /v1/search", httpserver.RateLimitByIP(searchHandler.Get, 120, time.Minute))
 	mux.HandleFunc("POST /v1/phone/{number}/reports", httpserver.RateLimitByIP(phoneHandler.Report, 20, time.Hour))
 	mux.HandleFunc("POST /v1/phone/{number}/claims", httpserver.RateLimitByIP(phoneHandler.Claim, 10, time.Hour))
-	moderation := httpserver.ModerationHandler{Service: phoneHandler.Service, Token: os.Getenv("ADMIN_API_TOKEN")}
+	moderation := httpserver.ModerationHandler{Service: phoneHandler.Service, Token: cfg.AdminAPIToken}
 	mux.HandleFunc("PATCH /v1/admin/reports/{id}", moderation.Report)
 	mux.HandleFunc("PATCH /v1/admin/claims/{id}", moderation.Claim)
 	mux.HandleFunc("POST /v1/admin/claims/{id}/evidence", moderation.Evidence)
-	admin := httpserver.AdminHandler{DB: db, Token: os.Getenv("ADMIN_API_TOKEN")}
+	admin := httpserver.AdminHandler{DB: db, Token: cfg.AdminAPIToken}
 	mux.HandleFunc("GET /v1/admin/dashboard", admin.Dashboard)
 	mux.HandleFunc("GET /v1/admin/reports", admin.Reports)
 	mux.HandleFunc("GET /v1/admin/claims", admin.Claims)

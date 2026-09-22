@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -26,7 +27,7 @@ func RateLimitByIP(next http.HandlerFunc, limit int, window time.Duration) http.
 	l := &ipRateLimiter{buckets: make(map[string]rateBucket), limit: limit, window: window}
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !l.allow(clientIP(r), time.Now()) {
-			w.Header().Set("Retry-After", "60")
+			w.Header().Set("Retry-After", fmt.Sprintf("%d", maxInt64(1, int64(l.retryAfter(clientIP(r), time.Now()).Seconds()))))
 			writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "rate_limit_exceeded"})
 			return
 		}
@@ -50,6 +51,18 @@ func (l *ipRateLimiter) allow(ip string, now time.Time) bool {
 	l.buckets[ip] = b
 	return true
 }
+
+func (l *ipRateLimiter) retryAfter(ip string, now time.Time) time.Duration {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	b, ok := l.buckets[ip]
+	if !ok || b.windowStart.IsZero() { return l.window }
+	remaining := l.window - now.Sub(b.windowStart)
+	if remaining < time.Second { return time.Second }
+	return remaining
+}
+
+func maxInt64(a,b int64) int64 { if a>b { return a }; return b }
 
 func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
