@@ -39,6 +39,7 @@ func (l *ipRateLimiter) allow(ip string, now time.Time) bool {
 	defer l.mu.Unlock()
 	b := l.buckets[ip]
 	if b.windowStart.IsZero() || now.Sub(b.windowStart) >= l.window {
+		if len(l.buckets) > 10000 { for key, old := range l.buckets { if now.Sub(old.windowStart) >= l.window { delete(l.buckets,key) } } }
 		l.buckets[ip] = rateBucket{windowStart: now, count: 1}
 		return true
 	}
