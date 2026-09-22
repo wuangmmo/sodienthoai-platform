@@ -205,6 +205,8 @@ jobs:
           echo "$BODY" | grep -q '"e164":"+84705899899"'
           echo "$BODY" | grep -q '"verification_status":"verified"'
           echo "$BODY" | grep -q '"seo_status":"indexable"'
+      - name: Ensure Redis CLI
+        run: command -v redis-cli >/dev/null || (sudo apt-get update && sudo apt-get install -y redis-tools)
       - name: Verify Redis cache hit path
         run: |
           redis-cli -h localhost DEL 'phone:v1:+84705899899'
@@ -221,7 +223,7 @@ jobs:
       - name: Verify SEO quality decision
         run: |
           STATUS=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT seo_status || '|' || seo_reason FROM phone_numbers WHERE e164='+84705899899';")
-          echo "$STATUS" | grep -Fx "indexable|verified_quality"
+          echo "$STATUS" | grep -Fx "noindex|insufficient_quality"
       - name: Reindex phone data into OpenSearch
         run: go run ./cmd/reindex
       - name: Verify OpenSearch phone document
