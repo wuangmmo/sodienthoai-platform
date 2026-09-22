@@ -3,6 +3,8 @@ package phone
 import (
  "context"
  "strings"
+ "encoding/csv"
+ "bytes"
 )
 
 type Contact struct {
@@ -56,4 +58,19 @@ func(s Service) RescanContacts(ctx context.Context,ownerKey string)(int,error){
  type item struct{id,name,e164 string};items:=[]item{};for rows.Next(){var x item;var name *string;if err:=rows.Scan(&x.id,&name,&x.e164);err!=nil{return 0,err};if name!=nil{x.name=*name};items=append(items,x)}
  changed:=0;for _,x:=range items{n,err:=s.Repository.FindByE164(ctx,x.e164);status:="unknown";var pid any=nil;if err==nil{pid=n.ID;ids,_:=s.Repository.IdentitiesByPhoneID(ctx,n.ID);var primary *Identity;for i:=range ids{if ids[i].IsPrimary{primary=&ids[i];break}};disputed,_:=s.Repository.HasOpenIdentityDispute(ctx,n.ID);status=contactMatch(x.name,primary,disputed)};var oldStatus string;err=s.Repository.DB.QueryRowContext(ctx,`SELECT match_status::text FROM private_contacts WHERE id=$1`,x.id).Scan(&oldStatus);if err!=nil{return changed,err};res,err:=s.Repository.DB.ExecContext(ctx,`UPDATE private_contacts SET phone_number_id=$2,match_status=$3,last_checked_at=NOW(),updated_at=NOW() WHERE id=$1 AND (phone_number_id IS DISTINCT FROM $2 OR match_status::text<>$3)`,x.id,pid,status);if err!=nil{return changed,err};if n,_:=res.RowsAffected();n>0{changed++;if oldStatus!=status{_,_=s.Repository.DB.ExecContext(ctx,`INSERT INTO contact_change_events(contact_id,old_match_status,new_match_status) VALUES($1,$2,$3)`,x.id,oldStatus,status)}}}
  return changed,nil
+}
+
+
+func ParseContactsCSV(data []byte)([]ContactImportItem,error){
+ rd:=csv.NewReader(bytes.NewReader(data));rd.TrimLeadingSpace=true;rows,err:=rd.ReadAll();if err!=nil{return nil,err};if len(rows)==0{return []ContactImportItem{},nil}
+ start:=0;nameCol,phoneCol:=0,1
+ if len(rows[0])>1{for i,h:=range rows[0]{v:=strings.ToLower(strings.TrimSpace(h));if v=="name"||v=="ten"||v=="tên"{nameCol=i;start=1};if v=="phone"||v=="mobile"||v=="sdt"||v=="số điện thoại"||v=="so dien thoai"{phoneCol=i;start=1}}}
+ out:=[]ContactImportItem{};for _,row:=range rows[start:]{if phoneCol>=len(row){continue};name:="";if nameCol<len(row){name=row[nameCol]};out=append(out,ContactImportItem{Name:name,Phone:row[phoneCol]})};return out,nil
+}
+
+func ParseContactsVCard(data []byte)([]ContactImportItem,error){
+ lines:=strings.Split(strings.ReplaceAll(string(data),"\r\n","\n"),"\n");out:=[]ContactImportItem{};name:="";phones:=[]string{}
+ flush:=func(){for _,p:=range phones{out=append(out,ContactImportItem{Name:name,Phone:p})};name="";phones=nil}
+ for _,line:=range lines{line=strings.TrimSpace(line);upper:=strings.ToUpper(line);if upper=="BEGIN:VCARD"{name="";phones=nil;continue};if upper=="END:VCARD"{flush();continue};if strings.HasPrefix(upper,"FN:"){name=strings.TrimSpace(line[strings.Index(line,":")+1:]);continue};if strings.HasPrefix(upper,"TEL")&&strings.Contains(line,":"){phones=append(phones,strings.TrimSpace(line[strings.Index(line,":")+1:]))}}
+ return out,nil
 }
