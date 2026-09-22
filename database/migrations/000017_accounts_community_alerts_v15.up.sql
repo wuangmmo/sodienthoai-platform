@@ -36,3 +36,18 @@ CREATE TABLE user_notifications (
  read_at TIMESTAMPTZ
 );
 CREATE INDEX idx_user_notifications_unread ON user_notifications(user_id,created_at DESC) WHERE read_at IS NULL;
+
+CREATE TABLE comment_helpful_votes (
+ comment_id UUID NOT NULL REFERENCES phone_comments(id) ON DELETE CASCADE,
+ user_id UUID NOT NULL REFERENCES user_accounts(id) ON DELETE CASCADE,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ PRIMARY KEY(comment_id,user_id)
+);
+CREATE TABLE comment_reports (
+ id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+ comment_id UUID NOT NULL REFERENCES phone_comments(id) ON DELETE CASCADE,
+ user_id UUID NOT NULL REFERENCES user_accounts(id) ON DELETE CASCADE,
+ reason VARCHAR(64) NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+ UNIQUE(comment_id,user_id)
+);
