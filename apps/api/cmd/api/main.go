@@ -61,6 +61,9 @@ func main() {
 	admin := httpserver.AdminHandler{DB: db, Token: cfg.AdminAPIToken}
 	mux.HandleFunc("GET /v1/admin/dashboard", admin.Dashboard)
 	mux.HandleFunc("GET /v1/admin/reports", admin.Reports)
+	mux.HandleFunc("GET /v1/admin/comments", admin.Comments)
+	mux.HandleFunc("GET /v1/admin/phones", admin.Phones)
+	mux.HandleFunc("GET /v1/admin/operations", admin.Operations)
 	mux.HandleFunc("GET /v1/admin/claims", admin.Claims)
 	mux.HandleFunc("GET /v1/admin/audit", admin.Audit)
 	contacts := httpserver.ContactHandler{Service: phoneHandler.Service}
