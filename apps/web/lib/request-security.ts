@@ -1,0 +1,1 @@
+import {NextRequest} from "next/server";export function sameOrigin(req:NextRequest){const origin=req.headers.get("origin");if(!origin)return true;try{const u=new URL(origin);return u.host===req.nextUrl.host&&u.protocol===req.nextUrl.protocol}catch{return false}}
