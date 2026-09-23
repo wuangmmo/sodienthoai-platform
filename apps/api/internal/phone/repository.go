@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -172,7 +173,7 @@ func (r Repository) QueueFootprintScan(ctx context.Context, phoneID string) (str
 }
 
 func (r Repository) SitemapShard(ctx context.Context, shard, shards, limit int) ([]SitemapNumber,error){
- if shards<1||shards>4096||shard<0||shard>=shards{return []SitemapNumber{},nil};if limit<1||limit>50000{limit=50000}
- rows,err:=r.DB.QueryContext(ctx,`SELECT e164,updated_at FROM phone_numbers WHERE seo_status IN ('indexable','indexed') AND mod(abs(hashtext(id::text)::bigint),$2)=$1 ORDER BY id LIMIT $3`,shard,shards,limit);if err!=nil{return nil,err};defer rows.Close()
+ if shards!=256||shard<0||shard>=256{return []SitemapNumber{},nil};if limit<1||limit>50000{limit=50000}
+ rows,err:=r.DB.QueryContext(ctx,`SELECT e164,updated_at FROM phone_numbers WHERE seo_status IN ('indexable','indexed') AND id >= ($1::text||'000000-0000-0000-0000-000000000000')::uuid AND id < ($2::text||'000000-0000-0000-0000-000000000000')::uuid ORDER BY id LIMIT $3`,fmt.Sprintf("%02x",shard),fmt.Sprintf("%02x",shard+1),limit);if err!=nil{return nil,err};defer rows.Close()
  items:=make([]SitemapNumber,0);for rows.Next(){var x SitemapNumber;if err:=rows.Scan(&x.E164,&x.UpdatedAt);err!=nil{return nil,err};items=append(items,x)};return items,rows.Err()
 }
