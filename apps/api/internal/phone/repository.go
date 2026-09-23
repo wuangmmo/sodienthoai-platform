@@ -60,20 +60,23 @@ func (r Repository) SitemapCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-func (r Repository) SitemapPage(ctx context.Context, limit, offset int) ([]SitemapNumber, error) {
+func (r Repository) SitemapPage(ctx context.Context, limit int, afterID string) ([]SitemapNumber, string, error) {
 	if limit < 1 || limit > 50000 { limit = 50000 }
-	if offset < 0 { offset = 0 }
 	rows, err := r.DB.QueryContext(ctx, `
-SELECT e164, updated_at
+SELECT id::text, e164, updated_at
 FROM phone_numbers
 WHERE seo_status IN ('indexable','indexed')
+  AND ($2 = '' OR id > $2::uuid)
 ORDER BY id
-LIMIT $1 OFFSET $2`, limit, offset)
-	if err != nil { return nil, err }
+LIMIT $1`, limit, afterID)
+	if err != nil { return nil, "", err }
 	defer rows.Close()
 	items := make([]SitemapNumber,0)
-	for rows.Next(){var item SitemapNumber;if err:=rows.Scan(&item.E164,&item.UpdatedAt);err!=nil{return nil,err};items=append(items,item)}
-	return items,rows.Err()
+	next := ""
+	for rows.Next(){var id string;var item SitemapNumber;if err:=rows.Scan(&id,&item.E164,&item.UpdatedAt);err!=nil{return nil,"",err};items=append(items,item);next=id}
+	if err:=rows.Err();err!=nil{return nil,"",err}
+	if len(items)<limit { next="" }
+	return items,next,nil
 }
 
 func (r Repository) IdentitiesByPhoneID(ctx context.Context, phoneID string) ([]Identity, error) {
