@@ -1,0 +1,1 @@
+export async function adminAPI(path:string){const base=process.env.API_INTERNAL_BASE_URL||"http://localhost:8080";const token=process.env.ADMIN_API_TOKEN;if(!token)throw new Error("ADMIN_API_TOKEN is required");const r=await fetch(base+path,{headers:{Authorization:"Bearer "+token},cache:"no-store"});if(!r.ok)return null;return r.json()}
