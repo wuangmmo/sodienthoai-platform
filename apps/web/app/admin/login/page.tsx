@@ -1,0 +1,4 @@
+import {redirect} from "next/navigation";
+import {isAdmin} from "../../../lib/admin-session";
+export const metadata={title:"Đăng nhập Admin · SoDienThoai.com",robots:{index:false,follow:false}};
+export default async function Login({searchParams}:{searchParams:Promise<{error?:string}>}){if(await isAdmin())redirect("/admin");const q=await searchParams;return <main className="adminLogin"><form method="post" action="/admin/auth"><a className="brand" href="/">SoDienThoai<span>.com</span></a><h1>Admin Console</h1><p>Đăng nhập để quản trị hệ thống staging.</p>{q.error&&<div className="adminWarning">Thông tin đăng nhập không hợp lệ.</div>}<label>Mật khẩu quản trị<input name="password" type="password" autoComplete="current-password" required autoFocus/></label><button type="submit">Đăng nhập</button></form></main>}
