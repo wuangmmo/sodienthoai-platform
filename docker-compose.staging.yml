@@ -64,8 +64,10 @@ services:
     build:
       context: ./apps/web
     environment:
+      APP_ENV: staging
       API_INTERNAL_BASE_URL: http://api:8080
       NEXT_PUBLIC_API_BASE_URL: https://staging.sodienthoai.com
+      NEXT_PUBLIC_SITE_URL: https://staging.sodienthoai.com
     ports:
       - "127.0.0.1:3000:3000"
     restart: unless-stopped

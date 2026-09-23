@@ -47,6 +47,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// Existing staging databases may still have the original VARCHAR(32) column.
+	if _, err := db.ExecContext(ctx, `ALTER TABLE schema_migrations ALTER COLUMN version TYPE VARCHAR(128)`); err != nil {
+		log.Fatal(err)
+	}
+
 	files, err := filepath.Glob(filepath.Join(dir, "*.up.sql"))
 	if err != nil {
 		log.Fatal(err)
