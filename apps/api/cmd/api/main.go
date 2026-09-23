@@ -66,6 +66,8 @@ func main() {
 	mux.HandleFunc("GET /v1/admin/operations", admin.Operations)
 	mux.HandleFunc("GET /v1/admin/claims", admin.Claims)
 	mux.HandleFunc("GET /v1/admin/audit", admin.Audit)
+	mux.HandleFunc("GET /v1/admin/users", admin.Users)
+	mux.HandleFunc("GET /v1/admin/footprint", admin.Footprint)
 	contacts := httpserver.ContactHandler{Service: phoneHandler.Service}
 	mux.HandleFunc("GET /v1/contacts", contacts.List)
 	mux.HandleFunc("POST /v1/contacts/import", httpserver.RateLimitByIP(contacts.Import, 10, time.Hour))
