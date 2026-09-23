@@ -65,7 +65,7 @@ func main() {
 	mux.HandleFunc("GET /v1/admin/phones", admin.Phones)
 	mux.HandleFunc("GET /v1/admin/operations", admin.Operations)
 	mux.HandleFunc("GET /v1/admin/claims", admin.Claims)
-	mux.HandleFunc("GET /v1/admin/audit", admin.Audit)\n\tmux.HandleFunc("GET /v1/admin/users", admin.Users)\n\tmux.HandleFunc("GET /v1/admin/footprint", admin.Footprint)\n\tadminImport := httpserver.AdminImportHandler{Service: phoneHandler.Service, Token: cfg.AdminAPIToken}\n\tmux.HandleFunc("POST /v1/admin/import", adminImport.Import)\n\tmux.HandleFunc("GET /v1/admin/import/batches", adminImport.Batches)
+	mux.HandleFunc("GET /v1/admin/audit", admin.Audit)\n\tmux.HandleFunc("GET /v1/admin/users", admin.Users)\n\tmux.HandleFunc("GET /v1/admin/footprint", admin.Footprint)\n\tmux.HandleFunc("GET /v1/admin/identities", admin.Identities)\n\tadminImport := httpserver.AdminImportHandler{Service: phoneHandler.Service, Token: cfg.AdminAPIToken}\n\tmux.HandleFunc("POST /v1/admin/import", adminImport.Import)\n\tmux.HandleFunc("GET /v1/admin/import/batches", adminImport.Batches)
 	contacts := httpserver.ContactHandler{Service: phoneHandler.Service}
 	mux.HandleFunc("GET /v1/contacts", contacts.List)
 	mux.HandleFunc("POST /v1/contacts/import", httpserver.RateLimitByIP(contacts.Import, 10, time.Hour))
