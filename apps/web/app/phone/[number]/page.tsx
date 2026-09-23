@@ -1,4 +1,4 @@
-import type {Metadata} from "next";import Link from "next/link";import {redirect} from "next/navigation";import PhoneActions from "./phone-actions";import CommunityActions from "./community-actions";
+import type {Metadata} from "next";import Link from "next/link";import {redirect} from "next/navigation";import PhoneActions from "./phone-actions";import CommunityActions from "./community-actions";import FootprintActions from "./footprint-actions";
 const base=()=>process.env.API_INTERNAL_BASE_URL||process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8080";
 async function get(path:string){const r=await fetch(base()+path,{cache:"no-store"});if(!r.ok)return null;return r.json()}
 function canonical(n:string){return "/phone/"+encodeURIComponent(n)}
