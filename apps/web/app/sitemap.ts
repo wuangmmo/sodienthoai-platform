@@ -1,11 +1,1 @@
-import type { MetadataRoute } from "next";
-const SITE="https://sodienthoai.com";
-const API=process.env.API_INTERNAL_BASE_URL||process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8080";
-export async function generateSitemaps(){
-  try{const res=await fetch(API+"/v1/seo/sitemap/count",{next:{revalidate:3600}});if(!res.ok)return[{id:0}];const body:{count:number;page_size:number}=await res.json();const pages=Math.max(1,Math.ceil(body.count/body.page_size));return Array.from({length:pages},(_,id)=>({id}));}catch{return[{id:0}]}
-}
-export default async function sitemap({id}:{id:number}):Promise<MetadataRoute.Sitemap>{
-  const urls:MetadataRoute.Sitemap=[];if(id===0)urls.push({url:SITE,changeFrequency:"daily",priority:1});
-  try{const res=await fetch(API+`/v1/seo/sitemap?limit=40000&page=${id}`,{next:{revalidate:3600}});if(!res.ok)return urls;const body:{data:{e164:string;updated_at?:string}[]}=await res.json();for(const item of body.data)urls.push({url:SITE+"/phone/"+encodeURIComponent(item.e164),lastModified:item.updated_at?new Date(item.updated_at):undefined,changeFrequency:"weekly",priority:.6})}catch{}
-  return urls;
-}
+import type {MetadataRoute} from "next";const SITE=process.env.NEXT_PUBLIC_SITE_URL||"https://sodienthoai.com";const API=process.env.API_INTERNAL_BASE_URL||process.env.NEXT_PUBLIC_API_BASE_URL||"http://localhost:8080";const PAGE=40000;const SHARDS=256;async function meta(){try{const r=await fetch(API+"/v1/seo/sitemap/count",{next:{revalidate:3600}});if(!r.ok)return{count:0,shards:SHARDS};const x:{count:number}=await r.json();return{count:x.count,shards:SHARDS}}catch{return{count:0,shards:SHARDS}}}export async function generateSitemaps(){const m=await meta();return Array.from({length:m.shards},(_,id)=>({id}))}export default async function sitemap({id}:{id:number}):Promise<MetadataRoute.Sitemap>{const m=await meta(),urls:MetadataRoute.Sitemap=[];if(id===0)urls.push({url:SITE,changeFrequency:"daily",priority:1});if(id<0||id>=m.shards)return urls;try{const r=await fetch(API+`/v1/seo/sitemap?limit=${PAGE}&shard=${id}&shards=${m.shards}`,{next:{revalidate:3600}});if(!r.ok)return urls;const b:{data:{e164:string;updated_at?:string}[]}=await r.json();for(const x of b.data)urls.push({url:SITE+"/phone/"+encodeURIComponent(x.e164),lastModified:x.updated_at?new Date(x.updated_at):undefined,changeFrequency:"weekly",priority:.6})}catch{}return urls}
