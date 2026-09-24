@@ -5,80 +5,61 @@ services:
       POSTGRES_DB: sodienthoai
       POSTGRES_USER: sodienthoai
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-    volumes:
-      - staging_postgres:/var/lib/postgresql/data
+    volumes: [production_postgres:/var/lib/postgresql/data]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sodienthoai -d sodienthoai"]
+      test: ["CMD-SHELL","pg_isready -U sodienthoai -d sodienthoai"]
       interval: 5s
       timeout: 5s
       retries: 15
-
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
-    volumes:
-      - staging_redis:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes: [production_redis:/data]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD","redis-cli","ping"]
       interval: 5s
       timeout: 3s
       retries: 15
-
   opensearch:
     image: opensearchproject/opensearch:2
     environment:
       discovery.type: single-node
       DISABLE_SECURITY_PLUGIN: "true"
-      OPENSEARCH_JAVA_OPTS: "-Xms384m -Xmx384m"
-    volumes:
-      - staging_opensearch:/usr/share/opensearch/data
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes: [production_opensearch:/usr/share/opensearch/data]
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-
   api:
-    build:
-      context: ./apps/api
+    build: {context: ./apps/api}
     environment:
-      APP_ENV: staging
+      APP_ENV: production
       API_PORT: "8080"
       DATABASE_URL: postgres://sodienthoai:${POSTGRES_PASSWORD}@postgres:5432/sodienthoai?sslmode=disable
       REDIS_ADDR: redis:6379
       OPENSEARCH_URL: http://opensearch:9200
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?ADMIN_API_TOKEN is required}
       REPORTER_HASH_SECRET: ${REPORTER_HASH_SECRET:?REPORTER_HASH_SECRET is required}
-    ports:
-      - "127.0.0.1:18080:8080"
+    ports: ["127.0.0.1:18080:8080"]
     restart: unless-stopped
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
-      opensearch: {condition: service_healthy}
-
   web:
-    build:
-      context: ./apps/web
+    build: {context: ./apps/web}
     environment:
-      APP_ENV: staging
+      APP_ENV: production
       API_INTERNAL_BASE_URL: http://api:8080
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:?ADMIN_API_TOKEN is required}
       ADMIN_LOGIN_PASSWORD: ${ADMIN_LOGIN_PASSWORD:?ADMIN_LOGIN_PASSWORD is required}
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?ADMIN_SESSION_SECRET is required}
       USER_SESSION_SECRET: ${USER_SESSION_SECRET:?USER_SESSION_SECRET is required}
-      NEXT_PUBLIC_API_BASE_URL: https://staging.sodienthoai.com
-      NEXT_PUBLIC_SITE_URL: https://staging.sodienthoai.com
-    ports:
-      - "127.0.0.1:3000:3000"
+      NEXT_PUBLIC_API_BASE_URL: https://sodienthoai.com
+      NEXT_PUBLIC_SITE_URL: https://sodienthoai.com
+    ports: ["127.0.0.1:3000:3000"]
     restart: unless-stopped
-    depends_on:
-      - api
-
+    depends_on: [api]
 volumes:
-  staging_postgres:
-  staging_redis:
-  staging_opensearch:
+  production_postgres:
+  production_redis:
+  production_opensearch:
