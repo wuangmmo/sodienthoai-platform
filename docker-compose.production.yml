@@ -30,6 +30,11 @@ services:
       OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
     volumes: [production_opensearch:/usr/share/opensearch/data]
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL","curl -fsS http://localhost:9200/_cluster/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
   api:
     build: {context: ./apps/api}
     environment:
@@ -45,6 +50,7 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+      opensearch: {condition: service_healthy}
   web:
     build: {context: ./apps/web}
     environment:
