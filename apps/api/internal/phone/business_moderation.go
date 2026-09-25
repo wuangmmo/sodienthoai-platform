@@ -33,6 +33,6 @@ func(s Service) ModerateBusinessVerification(ctx context.Context,id,status,actor
 
 func(s Service) ModerateBusinessReview(ctx context.Context,id,status,actor string)error{
  status=strings.ToLower(strings.TrimSpace(status));if status!="approved"&&status!="rejected"&&status!="removed"{return ErrInvalidBusinessModeration}
- res,err:=s.Repository.DB.ExecContext(ctx,`UPDATE business_reviews SET status=$2,reviewed_at=NOW(),reviewed_by=$3,updated_at=NOW() WHERE id=$1 AND status<>$2`,id,status,actor);if err!=nil{return err};n,_:=res.RowsAffected();if n==0{return ErrInvalidBusinessModeration}
+ res,err:=s.Repository.DB.ExecContext(ctx,`UPDATE business_reviews SET status=$2,reviewed_at=NOW(),reviewed_by=$3,updated_at=NOW() WHERE id=$1 AND ((status='pending' AND $2 IN ('approved','rejected')) OR (status='approved' AND $2='removed'))`,id,status,actor);if err!=nil{return err};n,_:=res.RowsAffected();if n==0{return ErrInvalidBusinessModeration}
  return s.Repository.AuditAdmin(ctx,actor,"moderate_business_review","business_review",id,map[string]any{"status":status})
 }
