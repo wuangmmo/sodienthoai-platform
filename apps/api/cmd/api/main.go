@@ -91,6 +91,13 @@ func main() {
 	mux.HandleFunc("PATCH /v1/me/notifications/{id}/read", community.MarkNotificationRead)
 	mux.HandleFunc("GET /v1/me/notifications/summary", community.NotificationSummary)
 	mux.HandleFunc("PATCH /v1/me/notifications/read-all", community.MarkAllNotificationsRead)
+	accountParity := httpserver.AccountParityHandler{Service: phoneHandler.Service}
+	mux.HandleFunc("GET /v1/me/phone-preferences", accountParity.Preferences)
+	mux.HandleFunc("PUT /v1/me/phone-preferences/{number}", httpserver.RateLimitByIP(accountParity.SetPreference, 60, time.Hour))
+	mux.HandleFunc("DELETE /v1/me/phone-preferences/{number}", accountParity.DeletePreference)
+	mux.HandleFunc("GET /v1/me/lookup-history", accountParity.History)
+	mux.HandleFunc("DELETE /v1/me/lookup-history", accountParity.DeleteHistory)
+	mux.HandleFunc("POST /v1/phone/{number}/appeals", httpserver.RateLimitByIP(accountParity.Appeal, 5, time.Hour))
 	seoHandler := httpserver.SEOHandler{Repository: phone.Repository{DB: db}}
 	mux.HandleFunc("GET /v1/seo/sitemap", seoHandler.Sitemap)
 	mux.HandleFunc("GET /v1/seo/sitemap/count", seoHandler.SitemapCount)
