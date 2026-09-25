@@ -86,3 +86,26 @@ func (s Service) CreateAppeal(ctx context.Context, subject, e164 string, in Appe
  if err!=nil && strings.Contains(strings.ToLower(err.Error()),"idx_phone_appeals_one_pending"){return "",ErrDuplicateAppeal}
  return id,err
 }
+
+
+type UserAppeal struct {
+ ID string `json:"id"`
+ E164 string `json:"e164"`
+ Reason string `json:"reason"`
+ Statement string `json:"statement"`
+ Status string `json:"status"`
+ CreatedAt string `json:"created_at"`
+}
+
+func (s Service) UserAppeals(ctx context.Context, subject string) ([]UserAppeal,error) {
+ uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return nil,err}
+ rows,err:=s.Repository.DB.QueryContext(ctx,`SELECT a.id::text,n.e164,a.reason,a.statement,a.status,a.created_at::text FROM phone_appeals a JOIN phone_numbers n ON n.id=a.phone_number_id WHERE a.user_id=$1 ORDER BY a.created_at DESC LIMIT 200`,uid);if err!=nil{return nil,err};defer rows.Close()
+ out:=[]UserAppeal{};for rows.Next(){var x UserAppeal;if err:=rows.Scan(&x.ID,&x.E164,&x.Reason,&x.Statement,&x.Status,&x.CreatedAt);err!=nil{return nil,err};out=append(out,x)}
+ return out,rows.Err()
+}
+
+func (s Service) WithdrawAppeal(ctx context.Context, subject, id string) error {
+ uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return err}
+ res,err:=s.Repository.DB.ExecContext(ctx,`UPDATE phone_appeals SET status='withdrawn' WHERE id=$1 AND user_id=$2 AND status='pending'`,id,uid);if err!=nil{return err}
+ n,_:=res.RowsAffected();if n==0{return ErrInvalidAppeal};return nil
+}
