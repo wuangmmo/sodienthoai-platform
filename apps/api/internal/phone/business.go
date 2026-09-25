@@ -52,9 +52,14 @@ func (s Service) RequestBusinessVerification(ctx context.Context,subject,busines
  allowed:=map[string]bool{"phone":true,"email":true,"document":true,"manual":true}
  if !allowed[in.Method]||len(in.Statement)>4000||len(in.EvidenceRef)>1000{return "",ErrInvalidBusiness}
  uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return "",err}
- var owns bool;if err=s.Repository.DB.QueryRowContext(ctx,`SELECT EXISTS(SELECT 1 FROM business_ownerships WHERE business_id=$1 AND user_id=$2 AND status IN ('pending','verified'))`,businessID,uid).Scan(&owns);err!=nil{return "",err};if !owns{return "",ErrInvalidBusiness}
- var id string;err=s.Repository.DB.QueryRowContext(ctx,`INSERT INTO business_verification_requests(business_id,user_id,method,statement,evidence_ref) VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,'')) RETURNING id::text`,businessID,uid,in.Method,in.Statement,in.EvidenceRef).Scan(&id)
- if err!=nil&&strings.Contains(strings.ToLower(err.Error()),"idx_business_verification_one_pending"){return "",ErrDuplicateBusinessVerification};if err==nil{_,_=s.Repository.DB.ExecContext(ctx,"UPDATE businesses SET verification_status=$2,updated_at=NOW() WHERE id=$1 AND verification_status IN ($3,$4)",businessID,"pending","unverified","rejected")};return id,err
+ tx,err:=s.Repository.DB.BeginTx(ctx,nil);if err!=nil{return "",err};defer tx.Rollback()
+ var state string;if err=tx.QueryRowContext(ctx,`SELECT verification_status FROM businesses WHERE id=$1 FOR UPDATE`,businessID).Scan(&state);err!=nil{return "",ErrInvalidBusiness};if state=="verified"||state=="suspended"{return "",ErrInvalidBusiness}
+ var owns bool;if err=tx.QueryRowContext(ctx,`SELECT EXISTS(SELECT 1 FROM business_ownerships WHERE business_id=$1 AND user_id=$2 AND status IN ('pending','verified'))`,businessID,uid).Scan(&owns);err!=nil{return "",err};if !owns{return "",ErrInvalidBusiness}
+ var pending bool;if err=tx.QueryRowContext(ctx,`SELECT EXISTS(SELECT 1 FROM business_verification_requests WHERE business_id=$1 AND status='pending')`,businessID).Scan(&pending);err!=nil{return "",err};if pending{return "",ErrDuplicateBusinessVerification}
+ var id string;err=tx.QueryRowContext(ctx,`INSERT INTO business_verification_requests(business_id,user_id,method,statement,evidence_ref) VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,'')) RETURNING id::text`,businessID,uid,in.Method,in.Statement,in.EvidenceRef).Scan(&id)
+ if err!=nil{if strings.Contains(strings.ToLower(err.Error()),"idx_business_verification_one_pending"){return "",ErrDuplicateBusinessVerification};return "",err}
+ if _,err=tx.ExecContext(ctx,`UPDATE businesses SET verification_status='pending',updated_at=NOW() WHERE id=$1 AND verification_status IN ('unverified','rejected','pending')`,businessID);err!=nil{return "",err}
+ if err=tx.Commit();err!=nil{return "",err};return id,nil
 }
 
 func (s Service) CreateBusinessReview(ctx context.Context,subject,businessID string,in BusinessReviewInput)(string,error){
