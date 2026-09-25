@@ -249,17 +249,17 @@ jobs:
       - name: Verify V41 business constraints and privacy
         run: |
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 <<'SQL'
-          INSERT INTO user_accounts(subject) VALUES('ci-owner'),('ci-other') ON CONFLICT(subject) DO NOTHING;
+          INSERT INTO user_accounts(subject_key) VALUES('ci-owner'),('ci-other') ON CONFLICT(subject_key) DO NOTHING;
           INSERT INTO businesses(slug,legal_name,display_name,verification_status,created_by)
           SELECT 'ci-business','CI Business','CI Business','verified',id FROM user_accounts WHERE subject='ci-owner'
           ON CONFLICT(slug) DO UPDATE SET verification_status='verified';
           INSERT INTO business_ownerships(business_id,user_id,role,status)
-          SELECT b.id,u.id,'owner','verified' FROM businesses b,user_accounts u WHERE b.slug='ci-business' AND u.subject='ci-owner'
+          SELECT b.id,u.id,'owner','verified' FROM businesses b,user_accounts u WHERE b.slug='ci-business' AND u.subject_key='ci-owner'
           ON CONFLICT(business_id,user_id) DO UPDATE SET status='verified';
           INSERT INTO business_verification_requests(business_id,user_id,method,statement,evidence_ref,status)
-          SELECT b.id,u.id,'manual','private verification statement','private://must-not-leak','approved' FROM businesses b,user_accounts u WHERE b.slug='ci-business' AND u.subject='ci-owner';
+          SELECT b.id,u.id,'manual','private verification statement','private://must-not-leak','approved' FROM businesses b,user_accounts u WHERE b.slug='ci-business' AND u.subject_key='ci-owner';
           INSERT INTO business_reviews(business_id,user_id,rating,body,status)
-          SELECT b.id,u.id,5,'approved public review','approved' FROM businesses b,user_accounts u WHERE b.slug='ci-business' AND u.subject='ci-other';
+          SELECT b.id,u.id,5,'approved public review','approved' FROM businesses b,user_accounts u WHERE b.slug='ci-business' AND u.subject_key='ci-other';
           SQL
           BODY=$(curl -fsS 'http://localhost:18080/v1/businesses/ci-business')
           echo "$BODY" | grep -q '"verified":true'
