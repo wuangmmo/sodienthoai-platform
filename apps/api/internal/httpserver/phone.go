@@ -24,6 +24,7 @@ func (h PhoneHandler) Get(w http.ResponseWriter,r *http.Request){
 	result,err:=h.Service.Lookup(ctx,e164)
 	if phone.IsNotFound(err){writeJSON(w,http.StatusNotFound,map[string]any{"error":"phone_number_not_found","number":e164,"identified":false});return}
 	if err!=nil{writeJSON(w,http.StatusInternalServerError,map[string]string{"error":"internal_error"});return}
+	if sub:=subject(r);sub!=""{_ = h.Service.RecordUserLookup(ctx,sub,e164)}
 	writeJSON(w,http.StatusOK,map[string]any{"data":result})
 }
 
