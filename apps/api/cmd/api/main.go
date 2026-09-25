@@ -58,6 +58,9 @@ func main() {
 	mux.HandleFunc("PATCH /v1/admin/claims/{id}", moderation.Claim)
 	mux.HandleFunc("PATCH /v1/admin/comments/{id}", moderation.Comment)
 	mux.HandleFunc("POST /v1/admin/claims/{id}/evidence", moderation.Evidence)
+	mux.HandleFunc("PATCH /v1/admin/appeals/{id}", moderation.Appeal)
+	mux.HandleFunc("PATCH /v1/admin/business-verifications/{id}", moderation.BusinessVerification)
+	mux.HandleFunc("PATCH /v1/admin/business-reviews/{id}", moderation.BusinessReview)
 	admin := httpserver.AdminHandler{DB: db, Token: cfg.AdminAPIToken}
 	mux.HandleFunc("GET /v1/admin/dashboard", admin.Dashboard)
 	mux.HandleFunc("GET /v1/admin/reports", admin.Reports)
@@ -69,6 +72,9 @@ func main() {
 	mux.HandleFunc("GET /v1/admin/users", admin.Users)
 	mux.HandleFunc("GET /v1/admin/footprint", admin.Footprint)
 	mux.HandleFunc("GET /v1/admin/identities", admin.Identities)
+	mux.HandleFunc("GET /v1/admin/appeals", admin.Appeals)
+	mux.HandleFunc("GET /v1/admin/business-verifications", admin.BusinessVerifications)
+	mux.HandleFunc("GET /v1/admin/business-reviews", admin.BusinessReviews)
 	adminImport := httpserver.AdminImportHandler{Service: phoneHandler.Service, Token: cfg.AdminAPIToken}
 	mux.HandleFunc("POST /v1/admin/import", adminImport.Import)
 	mux.HandleFunc("GET /v1/admin/import/batches", adminImport.Batches)
@@ -91,9 +97,23 @@ func main() {
 	mux.HandleFunc("PATCH /v1/me/notifications/{id}/read", community.MarkNotificationRead)
 	mux.HandleFunc("GET /v1/me/notifications/summary", community.NotificationSummary)
 	mux.HandleFunc("PATCH /v1/me/notifications/read-all", community.MarkAllNotificationsRead)
+	accountParity := httpserver.AccountParityHandler{Service: phoneHandler.Service}
+	mux.HandleFunc("GET /v1/me/phone-preferences", accountParity.Preferences)
+	mux.HandleFunc("PUT /v1/me/phone-preferences/{number}", httpserver.RateLimitByIP(accountParity.SetPreference, 60, time.Hour))
+	mux.HandleFunc("DELETE /v1/me/phone-preferences/{number}", accountParity.DeletePreference)
+	mux.HandleFunc("GET /v1/me/lookup-history", accountParity.History)
+	mux.HandleFunc("DELETE /v1/me/lookup-history", accountParity.DeleteHistory)
+	mux.HandleFunc("POST /v1/phone/{number}/appeals", httpserver.RateLimitByIP(accountParity.Appeal, 5, time.Hour))
+	business := httpserver.BusinessHandler{Service: phoneHandler.Service}
+	mux.HandleFunc("POST /v1/businesses", httpserver.RateLimitByIP(business.Create, 10, time.Hour))
+	mux.HandleFunc("POST /v1/businesses/{id}/verification-requests", httpserver.RateLimitByIP(business.Verification, 5, time.Hour))
+	mux.HandleFunc("POST /v1/businesses/{id}/reviews", httpserver.RateLimitByIP(business.Review, 10, time.Hour))
+	publicBusiness := httpserver.PublicBusinessHandler{Service: phoneHandler.Service}
+	mux.HandleFunc("GET /v1/businesses/{slug}", httpserver.RateLimitByIP(publicBusiness.Get, 120, time.Minute))
 	seoHandler := httpserver.SEOHandler{Repository: phone.Repository{DB: db}}
 	mux.HandleFunc("GET /v1/seo/sitemap", seoHandler.Sitemap)
 	mux.HandleFunc("GET /v1/seo/sitemap/count", seoHandler.SitemapCount)
+	mux.HandleFunc("GET /v1/seo/business-sitemap", seoHandler.BusinessSitemap)
 
 	server := &http.Server{
 		Addr: ":" + cfg.Port, Handler: mux,

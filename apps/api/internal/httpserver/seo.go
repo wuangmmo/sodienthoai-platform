@@ -29,3 +29,13 @@ func (h SEOHandler) SitemapCount(w http.ResponseWriter,r *http.Request){
 	if err!=nil { writeJSON(w,http.StatusInternalServerError,map[string]string{"error":"internal_error"});return }
 	writeJSON(w,http.StatusOK,map[string]any{"count":count,"page_size":phone.SitemapPageSize})
 }
+
+
+func (h SEOHandler) BusinessSitemap(w http.ResponseWriter,r *http.Request){
+ limit:=50000;if raw:=r.URL.Query().Get("limit");raw!=""{if n,err:=strconv.Atoi(raw);err==nil&&n>0&&n<=50000{limit=n}}
+ ctx,cancel:=context.WithTimeout(r.Context(),5*time.Second);defer cancel()
+ rows,err:=h.Repository.DB.QueryContext(ctx,`SELECT slug,updated_at FROM businesses WHERE verification_status='verified' ORDER BY updated_at DESC LIMIT $1`,limit)
+ if err!=nil{writeJSON(w,http.StatusInternalServerError,map[string]string{"error":"internal_error"});return};defer rows.Close()
+ items:=[]map[string]any{};for rows.Next(){var slug string;var updated time.Time;if err:=rows.Scan(&slug,&updated);err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return};items=append(items,map[string]any{"slug":slug,"updated_at":updated})}
+ writeJSON(w,http.StatusOK,map[string]any{"data":items,"limit":limit})
+}
