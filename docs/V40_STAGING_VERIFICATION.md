@@ -43,3 +43,14 @@ V40 remains staging-only until every check below passes.
 - Smoke-test existing lookup, report, claim, follow, comments and notification flows.
 - Confirm staging web uses staging API routing.
 - Keep sodienthoai.com and production compose unchanged.
+
+
+## V42 hardening gates
+- Exercise business verification through the real HTTP account proxy path, not only direct database fixtures.
+- Run concurrent duplicate verification and review requests; exactly one active request/review may survive.
+- Reject verification from unrelated, rejected or revoked ownership and prove no business state mutation occurs.
+- Reject replay/invalid moderation transitions, including stale requests after ownership revocation or business suspension.
+- Check public, account and admin response shapes for verification evidence leakage; evidence_ref remains private.
+- Validate pending/rejected/suspended businesses never enter public business API, JSON-LD or business sitemap.
+- Verify Business Center maps expected API errors to user-facing messages and does not offer invalid verification actions.
+- Run final full CI on the exact V42 head before merge.
