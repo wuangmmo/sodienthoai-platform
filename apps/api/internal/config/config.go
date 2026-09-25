@@ -12,6 +12,7 @@ type Config struct {
 	OpenSearchURL string
 	AppEnv        string
 	AdminAPIToken string
+	AdminSessionSecret string
 	ReporterHashSecret string
 }
 
@@ -23,6 +24,7 @@ func Load() (Config, error) {
 		OpenSearchURL: os.Getenv("OPENSEARCH_URL"),
 		AppEnv:        envOrDefault("APP_ENV", "development"),
 		AdminAPIToken: os.Getenv("ADMIN_API_TOKEN"),
+		AdminSessionSecret: os.Getenv("ADMIN_SESSION_SECRET"),
 		ReporterHashSecret: os.Getenv("REPORTER_HASH_SECRET"),
 	}
 	if cfg.DatabaseURL == "" {
@@ -36,6 +38,9 @@ func Load() (Config, error) {
 	}
 	if cfg.AppEnv == "production" && len(cfg.AdminAPIToken) < 32 {
 		return Config{}, fmt.Errorf("ADMIN_API_TOKEN must be at least 32 characters in production")
+	}
+	if (cfg.AppEnv == "production" || cfg.AppEnv == "staging") && len(cfg.AdminSessionSecret) < 32 {
+		return Config{}, fmt.Errorf("ADMIN_SESSION_SECRET must be at least 32 characters in staging/production")
 	}
 	if cfg.AppEnv == "production" && len(cfg.ReporterHashSecret) < 32 {
 		return Config{}, fmt.Errorf("REPORTER_HASH_SECRET must be at least 32 characters in production")

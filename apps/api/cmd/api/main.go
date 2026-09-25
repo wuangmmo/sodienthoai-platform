@@ -39,6 +39,10 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", health.Liveness)
 	mux.HandleFunc("GET /readyz", health.Readiness)
+	adminAuth := httpserver.AdminAuthenticator{DB: db, Secret: cfg.AdminSessionSecret, Issuer: "sodienthoai.com", Audience: "sodienthoai-admin", TTL: 8*time.Hour}
+	mux.HandleFunc("POST /admin/auth/login", httpserver.RateLimitByIP(adminAuth.Login, 10, 15*time.Minute))
+	mux.HandleFunc("GET /admin/auth/me", adminAuth.Me)
+	mux.HandleFunc("POST /admin/auth/logout", adminAuth.Logout)
 	phoneHandler := httpserver.PhoneHandler{Service: phone.Service{
 		Repository: phone.Repository{DB: db},
 		Cache: redisClient,
@@ -53,7 +57,7 @@ func main() {
 	mux.HandleFunc("GET /v1/search", httpserver.RateLimitByIP(searchHandler.Get, 120, time.Minute))
 	mux.HandleFunc("POST /v1/phone/{number}/reports", httpserver.RateLimitByIP(phoneHandler.Report, 20, time.Hour))
 	mux.HandleFunc("POST /v1/phone/{number}/claims", httpserver.RateLimitByIP(phoneHandler.Claim, 10, time.Hour))
-	moderation := httpserver.ModerationHandler{Service: phoneHandler.Service, Token: cfg.AdminAPIToken}
+	moderation := httpserver.ModerationHandler{Service: phoneHandler.Service, Token: cfg.AdminAPIToken, Auth: &adminAuth}
 	mux.HandleFunc("PATCH /v1/admin/reports/{id}", moderation.Report)
 	mux.HandleFunc("PATCH /v1/admin/claims/{id}", moderation.Claim)
 	mux.HandleFunc("PATCH /v1/admin/comments/{id}", moderation.Comment)
@@ -61,7 +65,7 @@ func main() {
 	mux.HandleFunc("PATCH /v1/admin/appeals/{id}", moderation.Appeal)
 	mux.HandleFunc("PATCH /v1/admin/business-verifications/{id}", moderation.BusinessVerification)
 	mux.HandleFunc("PATCH /v1/admin/business-reviews/{id}", moderation.BusinessReview)
-	admin := httpserver.AdminHandler{DB: db, Token: cfg.AdminAPIToken}
+	admin := httpserver.AdminHandler{DB: db, Token: cfg.AdminAPIToken, Auth: &adminAuth}
 	mux.HandleFunc("GET /v1/admin/dashboard", admin.Dashboard)
 	mux.HandleFunc("GET /v1/admin/reports", admin.Reports)
 	mux.HandleFunc("GET /v1/admin/comments", admin.Comments)
@@ -75,7 +79,7 @@ func main() {
 	mux.HandleFunc("GET /v1/admin/appeals", admin.Appeals)
 	mux.HandleFunc("GET /v1/admin/business-verifications", admin.BusinessVerifications)
 	mux.HandleFunc("GET /v1/admin/business-reviews", admin.BusinessReviews)
-	adminImport := httpserver.AdminImportHandler{Service: phoneHandler.Service, Token: cfg.AdminAPIToken}
+	adminImport := httpserver.AdminImportHandler{Service: phoneHandler.Service, Token: cfg.AdminAPIToken, Auth: &adminAuth}
 	mux.HandleFunc("POST /v1/admin/import", adminImport.Import)
 	mux.HandleFunc("GET /v1/admin/import/batches", adminImport.Batches)
 	contacts := httpserver.ContactHandler{Service: phoneHandler.Service}
