@@ -58,6 +58,9 @@ func main() {
 	mux.HandleFunc("PATCH /v1/admin/claims/{id}", moderation.Claim)
 	mux.HandleFunc("PATCH /v1/admin/comments/{id}", moderation.Comment)
 	mux.HandleFunc("POST /v1/admin/claims/{id}/evidence", moderation.Evidence)
+	mux.HandleFunc("PATCH /v1/admin/appeals/{id}", moderation.Appeal)
+	mux.HandleFunc("PATCH /v1/admin/business-verifications/{id}", moderation.BusinessVerification)
+	mux.HandleFunc("PATCH /v1/admin/business-reviews/{id}", moderation.BusinessReview)
 	admin := httpserver.AdminHandler{DB: db, Token: cfg.AdminAPIToken}
 	mux.HandleFunc("GET /v1/admin/dashboard", admin.Dashboard)
 	mux.HandleFunc("GET /v1/admin/reports", admin.Reports)
