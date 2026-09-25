@@ -106,6 +106,6 @@ func (s Service) UserAppeals(ctx context.Context, subject string) ([]UserAppeal,
 
 func (s Service) WithdrawAppeal(ctx context.Context, subject, id string) error {
  uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return err}
- res,err:=s.Repository.DB.ExecContext(ctx,`UPDATE phone_appeals SET status='cancelled' WHERE id=$1 AND user_id=$2 AND status='pending'`,id,uid);if err!=nil{return err}
+ res,err:=s.Repository.DB.ExecContext(ctx,`UPDATE phone_appeals SET status='withdrawn' WHERE id=$1 AND user_id=$2 AND status='pending'`,id,uid);if err!=nil{return err}
  n,_:=res.RowsAffected();if n==0{return ErrInvalidAppeal};return nil
 }
