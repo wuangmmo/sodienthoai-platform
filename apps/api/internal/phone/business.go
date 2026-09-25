@@ -4,6 +4,7 @@ import (
  "context"
  "errors"
  "strings"
+ "net/url"
 )
 
 var ErrInvalidBusiness = errors.New("invalid business")
@@ -37,11 +38,11 @@ func validSlug(v string) bool {
 
 func (s Service) CreateBusiness(ctx context.Context,subject string,in BusinessCreateInput)(string,error){
  in.Slug=strings.ToLower(strings.TrimSpace(in.Slug));in.LegalName=strings.TrimSpace(in.LegalName);in.DisplayName=strings.TrimSpace(in.DisplayName);in.Description=strings.TrimSpace(in.Description);in.WebsiteURL=strings.TrimSpace(in.WebsiteURL)
- if !validSlug(in.Slug)||len(in.LegalName)<2||len(in.LegalName)>200||len(in.DisplayName)<2||len(in.DisplayName)>200||len(in.Description)>4000||len(in.WebsiteURL)>1000{return "",ErrInvalidBusiness}
+ if !validSlug(in.Slug)||len(in.LegalName)<2||len(in.LegalName)>200||len(in.DisplayName)<2||len(in.DisplayName)>200||len(in.Description)>4000||len(in.WebsiteURL)>1000{return "",ErrInvalidBusiness};if in.WebsiteURL!=""{u,e:=url.ParseRequestURI(in.WebsiteURL);if e!=nil||u.Host==""||(u.Scheme!="https"&&u.Scheme!="http"){return "",ErrInvalidBusiness}}
  uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return "",err}
  tx,err:=s.Repository.DB.BeginTx(ctx,nil);if err!=nil{return "",err};defer tx.Rollback()
  var id string
- err=tx.QueryRowContext(ctx,`INSERT INTO businesses(slug,legal_name,display_name,description,website_url,created_by) VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,''),$6) RETURNING id::text`,in.Slug,in.LegalName,in.DisplayName,in.Description,in.WebsiteURL,uid).Scan(&id);if err!=nil{return "",err}
+ err=tx.QueryRowContext(ctx,`INSERT INTO businesses(slug,legal_name,display_name,description,website_url,created_by) VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,''),$6) RETURNING id::text`,in.Slug,in.LegalName,in.DisplayName,in.Description,in.WebsiteURL,uid).Scan(&id);if err!=nil{if strings.Contains(strings.ToLower(err.Error()),"businesses_slug_key"){return "",ErrInvalidBusiness};return "",err}
  if _,err=tx.ExecContext(ctx,`INSERT INTO business_ownerships(business_id,user_id,role,status) VALUES($1,$2,'owner','pending')`,id,uid);err!=nil{return "",err}
  return id,tx.Commit()
 }
