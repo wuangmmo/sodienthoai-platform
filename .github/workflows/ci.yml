@@ -162,6 +162,7 @@ jobs:
       OPENSEARCH_URL: http://localhost:9200
       API_PORT: "18080"
       MIGRATIONS_DIR: ../../database/migrations
+      ADMIN_API_TOKEN: v42-ci-admin-token-not-production
     defaults:
       run:
         working-directory: apps/api
@@ -273,6 +274,9 @@ jobs:
           test "$CODE" = "404"
           SITEMAP=$(curl -fsS 'http://localhost:18080/v1/seo/business-sitemap?limit=50000')
           ! echo "$SITEMAP" | grep -q '"slug":"ci-business"'
+      - name: Verify V42 business hardening
+        working-directory: .
+        run: bash scripts/test-v42-business.sh
       - name: API logs on failure
         if: failure()
         run: cat /tmp/sodienthoai-api.log || true
