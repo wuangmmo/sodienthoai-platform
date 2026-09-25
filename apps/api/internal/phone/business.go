@@ -54,7 +54,7 @@ func (s Service) RequestBusinessVerification(ctx context.Context,subject,busines
  uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return "",err}
  var owns bool;if err=s.Repository.DB.QueryRowContext(ctx,`SELECT EXISTS(SELECT 1 FROM business_ownerships WHERE business_id=$1 AND user_id=$2 AND status IN ('pending','verified'))`,businessID,uid).Scan(&owns);err!=nil{return "",err};if !owns{return "",ErrInvalidBusiness}
  var id string;err=s.Repository.DB.QueryRowContext(ctx,`INSERT INTO business_verification_requests(business_id,user_id,method,statement,evidence_ref) VALUES($1,$2,$3,NULLIF($4,''),NULLIF($5,'')) RETURNING id::text`,businessID,uid,in.Method,in.Statement,in.EvidenceRef).Scan(&id)
- if err!=nil&&strings.Contains(strings.ToLower(err.Error()),"idx_business_verification_one_pending"){return "",ErrDuplicateBusinessVerification};return id,err
+ if err!=nil&&strings.Contains(strings.ToLower(err.Error()),"idx_business_verification_one_pending"){return "",ErrDuplicateBusinessVerification};if err==nil{_,_=s.Repository.DB.ExecContext(ctx,"UPDATE businesses SET verification_status=$2,updated_at=NOW() WHERE id=$1 AND verification_status IN ($3,$4)",businessID,"pending","unverified","rejected")};return id,err
 }
 
 func (s Service) CreateBusinessReview(ctx context.Context,subject,businessID string,in BusinessReviewInput)(string,error){
