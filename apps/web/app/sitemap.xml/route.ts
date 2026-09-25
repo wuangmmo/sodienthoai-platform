@@ -6,6 +6,7 @@ export async function GET() {
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ...Array.from({length: SHARDS}, (_, id) => `  <sitemap><loc>${SITE}/sitemap/${id}.xml</loc></sitemap>`),
+    `  <sitemap><loc>${SITE}/sitemap/business.xml</loc></sitemap>`,
     '</sitemapindex>',
   ].join("\n");
 

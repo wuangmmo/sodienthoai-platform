@@ -16,3 +16,5 @@ func TestNewModerationUnauthorized(t *testing.T){
  cases:=[]struct{name string;fn func(http.ResponseWriter,*http.Request)}{{"appeal",h.Appeal},{"business_verification",h.BusinessVerification},{"business_review",h.BusinessReview}}
  for _,tc:=range cases{t.Run(tc.name,func(t *testing.T){r:=httptest.NewRequest(http.MethodPatch,"/",nil);w:=httptest.NewRecorder();tc.fn(w,r);if w.Code!=http.StatusUnauthorized{t.Fatalf("expected 401 got %d",w.Code)}})}
 }
+
+func TestBusinessAdminQueuesDoNotExposeEvidenceWithoutAuth(t *testing.T){h:=AdminHandler{Token:"secret"};r:=httptest.NewRequest(http.MethodGet,"/v1/admin/business-verifications",nil);w:=httptest.NewRecorder();h.BusinessVerifications(w,r);if w.Code!=http.StatusUnauthorized{t.Fatalf("expected 401 got %d",w.Code)}}

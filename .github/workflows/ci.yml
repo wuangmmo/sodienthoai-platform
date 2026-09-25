@@ -246,6 +246,33 @@ jobs:
           CODE=$(curl -sS -o /tmp/not-found.json -w '%{http_code}' 'http://localhost:18080/v1/phone/%2B84999999999')
           test "$CODE" = "200"
           grep -q '"identified":false' /tmp/not-found.json
+      - name: Verify V41 business constraints and privacy
+        run: |
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO user_accounts(subject_key) VALUES('ci-owner'),('ci-other') ON CONFLICT(subject_key) DO NOTHING;
+          INSERT INTO businesses(slug,legal_name,display_name,verification_status,created_by)
+          SELECT 'ci-business','CI Business','CI Business','verified',id FROM user_accounts WHERE subject_key='ci-owner'
+          ON CONFLICT(slug) DO UPDATE SET verification_status='verified';
+          INSERT INTO business_ownerships(business_id,user_id,role,status)
+          SELECT b.id,u.id,'owner','verified' FROM businesses b,user_accounts u WHERE b.slug='ci-business' AND u.subject_key='ci-owner'
+          ON CONFLICT(business_id,user_id) DO UPDATE SET status='verified';
+          INSERT INTO business_verification_requests(business_id,user_id,method,statement,evidence_ref,status)
+          SELECT b.id,u.id,'manual','private verification statement','private://must-not-leak','approved' FROM businesses b,user_accounts u WHERE b.slug='ci-business' AND u.subject_key='ci-owner';
+          INSERT INTO business_reviews(business_id,user_id,rating,body,status)
+          SELECT b.id,u.id,5,'approved public review','approved' FROM businesses b,user_accounts u WHERE b.slug='ci-business' AND u.subject_key='ci-other';
+          SQL
+          BODY=$(curl -fsS 'http://localhost:18080/v1/businesses/ci-business')
+          echo "$BODY" | grep -q '"verified":true'
+          echo "$BODY" | grep -q 'approved public review'
+          ! echo "$BODY" | grep -q 'private://must-not-leak'
+          ! echo "$BODY" | grep -q 'private verification statement'
+          SITEMAP=$(curl -fsS 'http://localhost:18080/v1/seo/business-sitemap?limit=50000')
+          echo "$SITEMAP" | grep -q '"slug":"ci-business"'
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "UPDATE businesses SET verification_status='rejected' WHERE slug='ci-business';"
+          CODE=$(curl -sS -o /tmp/business-hidden.json -w '%{http_code}' 'http://localhost:18080/v1/businesses/ci-business')
+          test "$CODE" = "404"
+          SITEMAP=$(curl -fsS 'http://localhost:18080/v1/seo/business-sitemap?limit=50000')
+          ! echo "$SITEMAP" | grep -q '"slug":"ci-business"'
       - name: API logs on failure
         if: failure()
         run: cat /tmp/sodienthoai-api.log || true

@@ -104,8 +104,12 @@ func main() {
 	mux.HandleFunc("GET /v1/me/lookup-history", accountParity.History)
 	mux.HandleFunc("DELETE /v1/me/lookup-history", accountParity.DeleteHistory)
 	mux.HandleFunc("POST /v1/phone/{number}/appeals", httpserver.RateLimitByIP(accountParity.Appeal, 5, time.Hour))
+	mux.HandleFunc("GET /v1/me/appeals", accountParity.Appeals)
+	mux.HandleFunc("DELETE /v1/me/appeals/{id}", accountParity.WithdrawAppeal)
 	business := httpserver.BusinessHandler{Service: phoneHandler.Service}
 	mux.HandleFunc("POST /v1/businesses", httpserver.RateLimitByIP(business.Create, 10, time.Hour))
+	mux.HandleFunc("GET /v1/me/businesses", business.Mine)
+	mux.HandleFunc("GET /v1/me/business-verifications", business.MyVerifications)
 	mux.HandleFunc("POST /v1/businesses/{id}/verification-requests", httpserver.RateLimitByIP(business.Verification, 5, time.Hour))
 	mux.HandleFunc("POST /v1/businesses/{id}/reviews", httpserver.RateLimitByIP(business.Review, 10, time.Hour))
 	publicBusiness := httpserver.PublicBusinessHandler{Service: phoneHandler.Service}
