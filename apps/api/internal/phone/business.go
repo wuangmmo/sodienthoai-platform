@@ -60,7 +60,9 @@ func (s Service) CreateBusinessReview(ctx context.Context,subject,businessID str
  in.Body=strings.TrimSpace(in.Body);in.BranchID=strings.TrimSpace(in.BranchID)
  if in.Rating<1||in.Rating>5||len(in.Body)>2000{return "",ErrInvalidBusinessReview}
  uid,err:=s.EnsureUser(ctx,subject);if err!=nil{return "",err}
+ var eligible bool;err=s.Repository.DB.QueryRowContext(ctx,`SELECT EXISTS(SELECT 1 FROM businesses WHERE id=$1 AND verification_status=\'verified\')`,businessID).Scan(&eligible);if err!=nil{return "",err};if !eligible{return "",ErrInvalidBusinessReview}
+ if in.BranchID!=""{var branchOK bool;err=s.Repository.DB.QueryRowContext(ctx,`SELECT EXISTS(SELECT 1 FROM business_branches WHERE id=$1 AND business_id=$2)`,in.BranchID,businessID).Scan(&branchOK);if err!=nil{return "",err};if !branchOK{return "",ErrInvalidBusinessReview}}
  var id string
- err=s.Repository.DB.QueryRowContext(ctx,`INSERT INTO business_reviews(business_id,branch_id,user_id,rating,body) VALUES($1,NULLIF($2,'')::uuid,$3,$4,NULLIF($5,'')) RETURNING id::text`,businessID,in.BranchID,uid,in.Rating,in.Body).Scan(&id)
+ err=s.Repository.DB.QueryRowContext(ctx,`INSERT INTO business_reviews(business_id,branch_id,user_id,rating,body) VALUES($1,NULLIF($2,\'\')::uuid,$3,$4,NULLIF($5,\'\')) RETURNING id::text`,businessID,in.BranchID,uid,in.Rating,in.Body).Scan(&id)
  if err!=nil&&strings.Contains(strings.ToLower(err.Error()),"idx_business_reviews_user_business_active"){return "",ErrDuplicateBusinessReview};return id,err
 }
