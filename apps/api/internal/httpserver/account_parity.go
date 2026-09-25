@@ -52,3 +52,14 @@ func (h AccountParityHandler) Appeal(w http.ResponseWriter,r *http.Request){
  if errors.Is(err,phone.ErrInvalidAppeal){writeJSON(w,400,map[string]string{"error":"invalid_appeal"});return};if errors.Is(err,phone.ErrDuplicateAppeal){writeJSON(w,409,map[string]string{"error":"pending_appeal_exists"});return};if phone.IsNotFound(err){writeJSON(w,404,map[string]string{"error":"phone_number_not_found"});return};if err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return}
  writeJSON(w,202,map[string]string{"status":"pending","id":id})
 }
+
+
+func (h AccountParityHandler) Appeals(w http.ResponseWriter,r *http.Request){
+ sub:=subject(r);if sub==""{writeJSON(w,401,map[string]string{"error":"user_required"});return}
+ ctx,cancel:=context.WithTimeout(r.Context(),5*time.Second);defer cancel();items,err:=h.Service.UserAppeals(ctx,sub);if err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return};writeJSON(w,200,map[string]any{"data":items})
+}
+
+func (h AccountParityHandler) WithdrawAppeal(w http.ResponseWriter,r *http.Request){
+ sub:=subject(r);if sub==""{writeJSON(w,401,map[string]string{"error":"user_required"});return}
+ ctx,cancel:=context.WithTimeout(r.Context(),3*time.Second);defer cancel();err:=h.Service.WithdrawAppeal(ctx,sub,r.PathValue("id"));if errors.Is(err,phone.ErrInvalidAppeal){writeJSON(w,409,map[string]string{"error":"appeal_not_pending"});return};if err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return};writeJSON(w,200,map[string]string{"status":"withdrawn"})
+}
