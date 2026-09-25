@@ -27,5 +27,5 @@ WHERE NOT EXISTS(SELECT 1 FROM phone_identities i WHERE i.phone_number_id=p.id A
 
 INSERT INTO phone_sources(phone_number_id,source_type,source_ref,confidence)
 SELECT p.id,'v42_ui_fixture','database/testdata/v42-ui-phones.sql',1 FROM phone_numbers p
-WHERE p.e164 LIKE '+849010000%' OR p.e164 IN('+842810000006','+842610000007')
+WHERE (p.e164 LIKE '+849010000%' OR p.e164 IN('+842810000006','+842610000007'))
 AND NOT EXISTS(SELECT 1 FROM phone_sources s WHERE s.phone_number_id=p.id AND s.source_type='v42_ui_fixture');
