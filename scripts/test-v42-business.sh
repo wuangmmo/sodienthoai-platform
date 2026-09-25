@@ -20,9 +20,10 @@ sql "INSERT INTO business_ownerships(business_id,user_id,role,status) VALUES('$B
 for n in 1 2; do
   (curl -sS -o "/tmp/v42-verify-$n.json" -w '%{http_code}' -H 'X-User-Subject: v42-owner' -H 'Content-Type: application/json' -d '{"method":"manual","statement":"V42 concurrency","evidence_ref":"private://v42-evidence"}' "$API/v1/businesses/$BID/verification-requests" >"/tmp/v42-verify-$n.code") &
 done
-wait
-CODES=$(cat /tmp/v42-verify-1.code /tmp/v42-verify-2.code | sort | tr '\n' ' ')
-test "$CODES" = "202 409 "
+wait || true
+C1=$(cat /tmp/v42-verify-1.code); C2=$(cat /tmp/v42-verify-2.code)
+test "$C1" = "202" || test "$C2" = "202"
+test "$C1" = "409" || test "$C2" = "409"
 test "$(sql "SELECT count(*) FROM business_verification_requests WHERE business_id='$BID' AND status='pending';")" = "1"
 
 # Private verification material must not leak from account/admin responses.
@@ -76,9 +77,10 @@ RBID=$(sql "SELECT id FROM businesses WHERE slug='v42-ci-review';")
 for n in 1 2; do
   (curl -sS -o "/tmp/v42-review-$n.json" -w '%{http_code}' -H 'X-User-Subject: v42-reviewer' -H 'Content-Type: application/json' -d '{"rating":5,"body":"V42 concurrent review"}' "$API/v1/businesses/$RBID/reviews" >"/tmp/v42-review-$n.code") &
 done
-wait
-CODES=$(cat /tmp/v42-review-1.code /tmp/v42-review-2.code | sort | tr '\n' ' ')
-test "$CODES" = "202 409 "
+wait || true
+C1=$(cat /tmp/v42-review-1.code); C2=$(cat /tmp/v42-review-2.code)
+test "$C1" = "202" || test "$C2" = "202"
+test "$C1" = "409" || test "$C2" = "409"
 test "$(sql "SELECT count(*) FROM business_reviews WHERE business_id='$RBID' AND status IN ('pending','approved');")" = "1"
 RID=$(sql "SELECT id FROM business_reviews WHERE business_id='$RBID' AND status='pending' LIMIT 1;")
 
