@@ -113,6 +113,7 @@ func main() {
 	seoHandler := httpserver.SEOHandler{Repository: phone.Repository{DB: db}}
 	mux.HandleFunc("GET /v1/seo/sitemap", seoHandler.Sitemap)
 	mux.HandleFunc("GET /v1/seo/sitemap/count", seoHandler.SitemapCount)
+	mux.HandleFunc("GET /v1/seo/business-sitemap", seoHandler.BusinessSitemap)
 
 	server := &http.Server{
 		Addr: ":" + cfg.Port, Handler: mux,
