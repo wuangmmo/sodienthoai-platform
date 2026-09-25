@@ -72,6 +72,9 @@ func main() {
 	mux.HandleFunc("GET /v1/admin/users", admin.Users)
 	mux.HandleFunc("GET /v1/admin/footprint", admin.Footprint)
 	mux.HandleFunc("GET /v1/admin/identities", admin.Identities)
+	mux.HandleFunc("GET /v1/admin/appeals", admin.Appeals)
+	mux.HandleFunc("GET /v1/admin/business-verifications", admin.BusinessVerifications)
+	mux.HandleFunc("GET /v1/admin/business-reviews", admin.BusinessReviews)
 	adminImport := httpserver.AdminImportHandler{Service: phoneHandler.Service, Token: cfg.AdminAPIToken}
 	mux.HandleFunc("POST /v1/admin/import", adminImport.Import)
 	mux.HandleFunc("GET /v1/admin/import/batches", adminImport.Batches)
@@ -105,6 +108,8 @@ func main() {
 	mux.HandleFunc("POST /v1/businesses", httpserver.RateLimitByIP(business.Create, 10, time.Hour))
 	mux.HandleFunc("POST /v1/businesses/{id}/verification-requests", httpserver.RateLimitByIP(business.Verification, 5, time.Hour))
 	mux.HandleFunc("POST /v1/businesses/{id}/reviews", httpserver.RateLimitByIP(business.Review, 10, time.Hour))
+	publicBusiness := httpserver.PublicBusinessHandler{Service: phoneHandler.Service}
+	mux.HandleFunc("GET /v1/businesses/{slug}", httpserver.RateLimitByIP(publicBusiness.Get, 120, time.Minute))
 	seoHandler := httpserver.SEOHandler{Repository: phone.Repository{DB: db}}
 	mux.HandleFunc("GET /v1/seo/sitemap", seoHandler.Sitemap)
 	mux.HandleFunc("GET /v1/seo/sitemap/count", seoHandler.SitemapCount)
