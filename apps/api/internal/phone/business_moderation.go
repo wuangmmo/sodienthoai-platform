@@ -20,12 +20,12 @@ func(s Service) ModerateBusinessVerification(ctx context.Context,id,status,actor
  var businessID,userID string
  err=tx.QueryRowContext(ctx,`UPDATE business_verification_requests SET status=$2,reviewed_at=NOW(),reviewed_by=$3,resolution_note=NULLIF($4,'') WHERE id=$1 AND status='pending' RETURNING business_id::text,user_id::text`,id,status,actor,strings.TrimSpace(note)).Scan(&businessID,&userID);if err!=nil{return ErrInvalidBusinessModeration}
  if status=="approved" {
-  if _,err=tx.ExecContext(ctx,`UPDATE businesses SET verification_status='verified',updated_at=NOW() WHERE id=$1`,businessID);err!=nil{return err}
-  if _,err=tx.ExecContext(ctx,`UPDATE business_ownerships SET status='verified',verified_at=NOW() WHERE business_id=$1 AND user_id=$2`,businessID,userID);err!=nil{return err}
+  res,err:=tx.ExecContext(ctx,`UPDATE businesses SET verification_status='verified',updated_at=NOW() WHERE id=$1 AND verification_status='pending'`,businessID);if err!=nil{return err};n,_:=res.RowsAffected();if n!=1{return ErrInvalidBusinessModeration}
+  res,err=tx.ExecContext(ctx,`UPDATE business_ownerships SET status='verified',verified_at=NOW() WHERE business_id=$1 AND user_id=$2 AND status='pending'`,businessID,userID);if err!=nil{return err};n,_=res.RowsAffected();if n!=1{return ErrInvalidBusinessModeration}
 
  } else {
-  if _,err=tx.ExecContext(ctx,`UPDATE businesses SET verification_status='rejected',updated_at=NOW() WHERE id=$1 AND verification_status<>'verified'`,businessID);err!=nil{return err}
-  if _,err=tx.ExecContext(ctx,`UPDATE business_ownerships SET status='rejected' WHERE business_id=$1 AND user_id=$2 AND status='pending'`,businessID,userID);err!=nil{return err}
+  res,err:=tx.ExecContext(ctx,`UPDATE businesses SET verification_status='rejected',updated_at=NOW() WHERE id=$1 AND verification_status='pending'`,businessID);if err!=nil{return err};n,_:=res.RowsAffected();if n!=1{return ErrInvalidBusinessModeration}
+  res,err=tx.ExecContext(ctx,`UPDATE business_ownerships SET status='rejected' WHERE business_id=$1 AND user_id=$2 AND status='pending'`,businessID,userID);if err!=nil{return err};n,_=res.RowsAffected();if n!=1{return ErrInvalidBusinessModeration}
  }
  if err=tx.Commit();err!=nil{return err}
  return s.Repository.AuditAdmin(ctx,actor,"moderate_business_verification","business_verification",id,map[string]any{"status":status,"business_id":businessID})
