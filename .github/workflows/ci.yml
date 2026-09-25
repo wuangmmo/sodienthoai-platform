@@ -251,7 +251,7 @@ jobs:
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 <<'SQL'
           INSERT INTO user_accounts(subject_key) VALUES('ci-owner'),('ci-other') ON CONFLICT(subject_key) DO NOTHING;
           INSERT INTO businesses(slug,legal_name,display_name,verification_status,created_by)
-          SELECT 'ci-business','CI Business','CI Business','verified',id FROM user_accounts WHERE subject='ci-owner'
+          SELECT 'ci-business','CI Business','CI Business','verified',id FROM user_accounts WHERE subject_key='ci-owner'
           ON CONFLICT(slug) DO UPDATE SET verification_status='verified';
           INSERT INTO business_ownerships(business_id,user_id,role,status)
           SELECT b.id,u.id,'owner','verified' FROM businesses b,user_accounts u WHERE b.slug='ci-business' AND u.subject_key='ci-owner'
