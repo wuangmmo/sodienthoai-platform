@@ -1,0 +1,3 @@
+import {NextRequest,NextResponse} from "next/server";
+const base=process.env.API_INTERNAL_BASE_URL||"http://api:8080";
+export async function POST(req:NextRequest){const body=await req.text();const upstream=await fetch(base+"/admin/auth/login",{method:"POST",headers:{"content-type":"application/json"},body,cache:"no-store"});const data=await upstream.json().catch(()=>({error:"upstream_error"}));if(!upstream.ok)return NextResponse.json(data,{status:upstream.status});const res=NextResponse.json({admin:data.admin});res.cookies.set("control_session",data.token,{httpOnly:true,secure:process.env.NODE_ENV==="production",sameSite:"lax",path:"/",maxAge:8*60*60});return res}
