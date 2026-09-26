@@ -291,8 +291,9 @@ jobs:
           HIDDEN_SITE=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM sites WHERE organization_id='$ORG' AND id<>'$SITEID' LIMIT 1;")
           if [ -n "$HIDDEN_SITE" ]; then
             PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "INSERT INTO control_audit_logs(admin_user_id,organization_id,site_id,action,resource_type,resource_id,before_data,after_data) VALUES('$ADMINID','$ORG','$HIDDEN_SITE','ci_hidden_audit','site','$HIDDEN_SITE','{}','{}');"
-            curl -fsS -H "Authorization: Bearer $AUDITOR_TOKEN" http://localhost:18080/v1/control/audit > /tmp/site-audit.json
-            if grep -q 'ci_hidden_audit' /tmp/site-audit.json; then exit 1; fi
+            AUDIT_HTTP=$(curl -sS -o /tmp/site-audit.json -w '%{http_code}' -H "Authorization: Bearer $AUDITOR_TOKEN" http://localhost:18080/v1/control/audit)
+            test "$AUDIT_HTTP" = "200" || { cat /tmp/site-audit.json; exit 1; }
+            if grep -q 'ci_hidden_audit' /tmp/site-audit.json; then cat /tmp/site-audit.json; exit 1; fi
           fi
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM admin_users WHERE id='$AUDITOR';"
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM admin_users WHERE id='$LIMITED'; DELETE FROM control_roles WHERE id='$LIMITEDROLE';"
