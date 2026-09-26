@@ -106,6 +106,23 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  control:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/control
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate dependency lock
+        run: |
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts
+      - run: npm ci
+      - run: npm run build
+
   containers:
     runs-on: ubuntu-latest
     steps:
@@ -119,6 +136,8 @@ jobs:
         run: docker build -t sodienthoai-api:ci apps/api
       - name: Build Web image
         run: docker build -t sodienthoai-web:ci apps/web
+      - name: Build Control Center image
+        run: docker build -t sodienthoai-control:ci apps/control
       - name: Validate Compose configuration
         run: docker compose config --quiet
 
