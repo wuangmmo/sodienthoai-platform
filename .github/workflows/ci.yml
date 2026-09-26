@@ -240,6 +240,20 @@ jobs:
           curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/control/sites | grep -q '"sodienthoai.com"'
           curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/control/sites | grep -q '"mapsviet.com"'
           curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/control/dashboard | grep -q '"sites":4'
+          ORG=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM organizations WHERE slug='sodienthoai-ecosystem';")
+          SUPERROLE=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM control_roles WHERE organization_id='$ORG' AND slug='super-admin';")
+          ADMINID=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM admin_users WHERE email='admin-ci@sodienthoai.test';")
+          ASSIGN=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM control_admin_assignments WHERE admin_user_id='$ADMINID' AND role_id='$SUPERROLE' AND organization_id='$ORG' AND site_id IS NULL LIMIT 1;")
+          CODE=$(curl -sS -o /tmp/self-revoke.json -w '%{http_code}' -X DELETE -H "Authorization: Bearer $TOKEN" "http://localhost:18080/v1/control/scopes/$ASSIGN")
+          test "$CODE" = "409"
+          grep -q 'self_scope_revoke_forbidden' /tmp/self-revoke.json
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "INSERT INTO admin_users(name,email,password_hash,role,status) SELECT 'CI Second Admin','ci-second@sodienthoai.test',password_hash,'super-admin','active' FROM admin_users WHERE id='$ADMINID';"
+          SECOND=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM admin_users WHERE email='ci-second@sodienthoai.test';")
+          SECONDASSIGN=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO control_admin_assignments(admin_user_id,role_id,organization_id) VALUES('$SECOND','$SUPERROLE','$ORG') RETURNING id;")
+          curl -fsS -X DELETE -H "Authorization: Bearer $TOKEN" "http://localhost:18080/v1/control/scopes/$SECONDASSIGN" | grep -q '"ok":true'
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM admin_users WHERE id='$SECOND';"
+          COUNT=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT count(*) FROM control_admin_assignments ca JOIN control_roles r ON r.id=ca.role_id JOIN admin_users au ON au.id=ca.admin_user_id WHERE ca.organization_id='$ORG' AND ca.site_id IS NULL AND r.slug='super-admin' AND au.status='active';")
+          test "$COUNT" = "1"
           curl -fsS -X POST -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/logout | grep -q '"ok":true'
           CODE=$(curl -sS -o /tmp/admin-bad-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin-ci@sodienthoai.test","password":"wrong-password"}' http://localhost:18080/admin/auth/login)
           test "$CODE" = "401"
