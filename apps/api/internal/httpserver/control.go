@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -109,4 +110,49 @@ func (h ControlHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w,http.StatusInternalServerError,map[string]string{"error":"internal_error"}); return
 	}
 	writeJSON(w,http.StatusOK,map[string]any{"phones":phones,"reports":reports,"claims":claims,"sites":sites})
+}
+
+
+func (h ControlHandler) Roles(w http.ResponseWriter, r *http.Request) {
+	a,ok:=h.access(r)
+	if !ok { writeJSON(w,http.StatusUnauthorized,map[string]string{"error":"unauthorized"}); return }
+	if !a.Permissions["roles.manage"] { writeJSON(w,http.StatusForbidden,map[string]string{"error":"forbidden"}); return }
+	ctx,cancel:=context.WithTimeout(r.Context(),3*time.Second); defer cancel()
+	rows,err:=h.DB.QueryContext(ctx,`
+		SELECT r.id::text,r.slug,r.name,r.description,r.is_system,
+		       COALESCE(array_agg(rp.permission_key ORDER BY rp.permission_key) FILTER (WHERE rp.permission_key IS NOT NULL),'{}')
+		FROM control_roles r
+		LEFT JOIN control_role_permissions rp ON rp.role_id=r.id
+		WHERE r.organization_id IN (
+		  SELECT DISTINCT organization_id FROM control_admin_assignments WHERE admin_user_id=$1::uuid AND organization_id IS NOT NULL
+		)
+		GROUP BY r.id,r.slug,r.name,r.description,r.is_system
+		ORDER BY r.name`,a.Admin.ID)
+	if err!=nil { writeJSON(w,http.StatusInternalServerError,map[string]string{"error":"internal_error"}); return }
+	defer rows.Close()
+	type role struct { ID,Slug,Name,Description string; IsSystem bool; Permissions []string }
+	items:=[]role{}
+	for rows.Next(){var x role;var raw string;if rows.Scan(&x.ID,&x.Slug,&x.Name,&x.Description,&x.IsSystem,&raw)==nil{x.Permissions=parsePGTextArray(raw);items=append(items,x)}}
+	writeJSON(w,http.StatusOK,map[string]any{"roles":items})
+}
+
+func (h ControlHandler) Permissions(w http.ResponseWriter, r *http.Request) {
+	a,ok:=h.access(r)
+	if !ok { writeJSON(w,http.StatusUnauthorized,map[string]string{"error":"unauthorized"}); return }
+	if !a.Permissions["roles.manage"] { writeJSON(w,http.StatusForbidden,map[string]string{"error":"forbidden"}); return }
+	ctx,cancel:=context.WithTimeout(r.Context(),3*time.Second); defer cancel()
+	rows,err:=h.DB.QueryContext(ctx,`SELECT key,description FROM control_permissions ORDER BY key`)
+	if err!=nil { writeJSON(w,http.StatusInternalServerError,map[string]string{"error":"internal_error"}); return }
+	defer rows.Close()
+	type permission struct{ Key,Description string }
+	items:=[]permission{}
+	for rows.Next(){var x permission;if rows.Scan(&x.Key,&x.Description)==nil{items=append(items,x)}}
+	writeJSON(w,http.StatusOK,map[string]any{"permissions":items})
+}
+
+func parsePGTextArray(raw string) []string {
+	if raw=="{}" || len(raw)<2 { return []string{} }
+	raw=raw[1:len(raw)-1]
+	if raw=="" { return []string{} }
+	return strings.Split(raw,",")
 }
