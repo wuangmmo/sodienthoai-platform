@@ -79,6 +79,19 @@ services:
     depends_on:
       - api
 
+  control:
+    build:
+      context: ./apps/control
+    environment:
+      APP_ENV: staging
+      NEXT_PUBLIC_API_BASE_URL: https://staging.sodienthoai.com
+      NEXT_PUBLIC_CONTROL_URL: https://control-staging.sodienthoai.com
+    ports:
+      - "127.0.0.1:3300:3000"
+    restart: unless-stopped
+    depends_on:
+      - api
+
 volumes:
   staging_postgres:
   staging_redis:
