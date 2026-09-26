@@ -187,8 +187,22 @@ func auditTx(ctx context.Context,tx *sql.Tx,a controlAccess,r *http.Request,acti
 	b,_:=json.Marshal(before); n,_:=json.Marshal(after)
 	var orgID string
 	var siteID *string
-	if typ=="site" { siteID=&id }
-	_ = tx.QueryRowContext(ctx,`SELECT organization_id::text FROM control_admin_assignments WHERE admin_user_id=$1::uuid AND organization_id IS NOT NULL ORDER BY (site_id IS NULL) DESC LIMIT 1`,a.Admin.ID).Scan(&orgID)
+	switch typ {
+	case "site":
+		siteID=&id
+		if err:=tx.QueryRowContext(ctx,`SELECT organization_id::text FROM sites WHERE id=$1::uuid`,id).Scan(&orgID);err!=nil{return err}
+	case "admin_assignment":
+		if err:=tx.QueryRowContext(ctx,`SELECT organization_id::text,site_id::text FROM control_admin_assignments WHERE id=$1::uuid`,id).Scan(&orgID,&siteID);err!=nil{
+			if m,ok:=before.(map[string]any);ok { if v,ok:=m["organizationId"].(string);ok{orgID=v}; if v,ok:=m["siteId"].(string);ok{siteID=&v} }
+		}
+	case "role":
+		if err:=tx.QueryRowContext(ctx,`SELECT organization_id::text FROM control_roles WHERE id=$1::uuid`,id).Scan(&orgID);err!=nil{
+			if m,ok:=before.(map[string]any);ok { if v,ok:=m["organizationId"].(string);ok{orgID=v} }
+		}
+	default:
+		return fmt.Errorf("unsupported audit resource type")
+	}
+	if orgID=="" { return fmt.Errorf("missing audit organization scope") }
 	_,err:=tx.ExecContext(ctx,`INSERT INTO control_audit_logs(admin_user_id,organization_id,site_id,action,resource_type,resource_id,before_data,after_data,ip_address) VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7::jsonb,$8::jsonb,NULLIF($9,'')::inet)`,a.Admin.ID,orgID,siteID,action,typ,id,string(b),string(n),requestIP(r))
 	return err
 }
