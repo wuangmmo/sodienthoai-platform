@@ -278,6 +278,14 @@ jobs:
           ESC=$(curl -sS -o /tmp/permission-escalation.json -w '%{http_code}' -H "Authorization: Bearer $LIMITED_TOKEN" -H 'Content-Type: application/json' -d "{\"organizationId\":\"$ORG\",\"name\":\"Escalated\",\"slug\":\"ci-escalated\",\"description\":\"must fail\",\"permissions\":[\"roles.manage\",\"system.manage\"]}" http://localhost:18080/v1/control/roles)
           test "$ESC" = "403"
           grep -q 'permission_escalation' /tmp/permission-escalation.json
+          AUDITROLE=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO control_roles(organization_id,slug,name,description,is_system) VALUES('$ORG','ci-audit-viewer','CI Audit Viewer','site isolation',false) RETURNING id;")
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "INSERT INTO control_role_permissions(role_id,permission_key) VALUES('$AUDITROLE','audit.view'); INSERT INTO control_admin_assignments(admin_user_id,role_id,organization_id,site_id) VALUES('$LIMITED','$AUDITROLE','$ORG','$SITEID');"
+          HIDDEN_SITE=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM sites WHERE organization_id='$ORG' AND id<>'$SITEID' LIMIT 1;")
+          if [ -n "$HIDDEN_SITE" ]; then
+            PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "INSERT INTO control_audit_logs(admin_user_id,organization_id,site_id,action,resource_type,resource_id,before_data,after_data) VALUES('$ADMINID','$ORG','$HIDDEN_SITE','ci_hidden_audit','site','$HIDDEN_SITE','{}','{}');"
+            curl -fsS -H "Authorization: Bearer $LIMITED_TOKEN" http://localhost:18080/v1/control/audit > /tmp/site-audit.json
+            if grep -q 'ci_hidden_audit' /tmp/site-audit.json; then exit 1; fi
+          fi
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM admin_users WHERE id='$LIMITED'; DELETE FROM control_roles WHERE id='$LIMITEDROLE';"
           curl -fsS -X POST -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/logout | grep -q '"ok":true'
           CODE=$(curl -sS -o /tmp/admin-bad-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin-ci@sodienthoai.test","password":"wrong-password"}' http://localhost:18080/admin/auth/login)
