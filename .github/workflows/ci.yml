@@ -302,7 +302,7 @@ jobs:
           grep -Eq '"ok"[[:space:]]*:[[:space:]]*true' /tmp/admin-logout.json
           CODE=$(curl -sS -o /tmp/admin-bad-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin-ci@sodienthoai.test","password":"wrong-password"}' http://localhost:18080/admin/auth/login)
           test "$CODE" = "401" || { echo "bad-login expected 401, got $CODE"; cat /tmp/admin-bad-login.json; exit 1; }
-          grep -Eq '"error"[[:space:]]*:[[:space:]]*"invalid_credentials"' /tmp/admin-bad-login.json || { cat /tmp/admin-bad-login.json; exit 1; }
+          python3 -c 'import json; d=json.load(open("/tmp/admin-bad-login.json")); assert d.get("error") == "invalid_credentials", d' || { cat /tmp/admin-bad-login.json; exit 1; }
       - name: Verify phone lookup over HTTP
         run: |
           BODY=$(curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899')
