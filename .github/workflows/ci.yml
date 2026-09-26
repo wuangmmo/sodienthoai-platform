@@ -304,6 +304,7 @@ jobs:
           test "$CODE" = "401" || { echo "bad-login expected 401, got $CODE"; cat /tmp/admin-bad-login.json; exit 1; }
           # HTTP 401 is the integration contract here; response schema is covered by API tests.
           echo "Control integration assertions passed"
+          wait
       - name: Verify phone lookup over HTTP
         run: |
           BODY=$(curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899')
