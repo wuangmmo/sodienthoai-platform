@@ -271,6 +271,14 @@ jobs:
           test "$AUDIT_SCOPE" -ge 1
           BAD_AUDIT=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT count(*) FROM control_audit_logs WHERE action IN ('scope.assign','scope.revoke') AND organization_id IS NULL;")
           test "$BAD_AUDIT" = "0"
+          LIMITED=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO admin_users(name,email,password_hash,role,status) SELECT 'CI Limited','ci-limited@sodienthoai.test',password_hash,'admin','active' FROM admin_users WHERE id='$ADMINID' RETURNING id;")
+          LIMITEDROLE=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO control_roles(organization_id,slug,name,description,is_system) VALUES('$ORG','ci-role-manager','CI Role Manager','permission escalation test',false) RETURNING id;")
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "INSERT INTO control_role_permissions(role_id,permission_key) VALUES('$LIMITEDROLE','roles.manage'); INSERT INTO control_admin_assignments(admin_user_id,role_id,organization_id) VALUES('$LIMITED','$LIMITEDROLE','$ORG');"
+          LIMITED_TOKEN=$(curl -fsS -H 'Content-Type: application/json' -d '{"email":"ci-limited@sodienthoai.test","password":"v44-ci-password-not-production"}' http://localhost:18080/admin/auth/login | python3 -c 'import sys,json; print(json.load(sys.stdin)["token"])')
+          ESC=$(curl -sS -o /tmp/permission-escalation.json -w '%{http_code}' -H "Authorization: Bearer $LIMITED_TOKEN" -H 'Content-Type: application/json' -d '{"name":"Escalated","slug":"ci-escalated","description":"must fail","permissions":["roles.manage","system.manage"]}' http://localhost:18080/v1/control/roles)
+          test "$ESC" = "403"
+          grep -q 'permission_escalation' /tmp/permission-escalation.json
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM admin_users WHERE id='$LIMITED'; DELETE FROM control_roles WHERE id='$LIMITEDROLE';"
           curl -fsS -X POST -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/logout | grep -q '"ok":true'
           CODE=$(curl -sS -o /tmp/admin-bad-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin-ci@sodienthoai.test","password":"wrong-password"}' http://localhost:18080/admin/auth/login)
           test "$CODE" = "401"
