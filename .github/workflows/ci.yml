@@ -236,6 +236,10 @@ jobs:
           test -n "$TOKEN"
           curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/me | grep -q 'admin-ci@sodienthoai.test'
           curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/admin/dashboard | grep -q '"phones"'
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/control/me | grep -q '"dashboard.view"'
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/control/sites | grep -q '"sodienthoai.com"'
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/control/sites | grep -q '"mapsviet.com"'
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/control/dashboard | grep -q '"sites":4'
           curl -fsS -X POST -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/logout | grep -q '"ok":true'
           CODE=$(curl -sS -o /tmp/admin-bad-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin-ci@sodienthoai.test","password":"wrong-password"}' http://localhost:18080/admin/auth/login)
           test "$CODE" = "401"
