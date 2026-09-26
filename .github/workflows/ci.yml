@@ -295,7 +295,7 @@ jobs:
             test "$AUDIT_HTTP" = "200" || { cat /tmp/site-audit.json; exit 1; }
             if grep -q 'ci_hidden_audit' /tmp/site-audit.json; then cat /tmp/site-audit.json; exit 1; fi
           fi
-          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM admin_users WHERE id='$AUDITOR';"
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM control_roles WHERE id='$AUDITROLE'; DELETE FROM admin_users WHERE id='$AUDITOR';"
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM admin_users WHERE id='$LIMITED'; DELETE FROM control_roles WHERE id='$LIMITEDROLE';"
           curl -fsS -X POST -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/logout | grep -q '"ok":true'
           CODE=$(curl -sS -o /tmp/admin-bad-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin-ci@sodienthoai.test","password":"wrong-password"}' http://localhost:18080/admin/auth/login)
