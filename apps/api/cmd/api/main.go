@@ -46,6 +46,7 @@ func main() {
 	control := httpserver.ControlHandler{DB: db, Auth: &adminAuth}
 	mux.HandleFunc("GET /v1/control/me", control.Me)
 	mux.HandleFunc("GET /v1/control/dashboard", control.Dashboard)
+	mux.HandleFunc("GET /v1/control/organizations", control.Organizations)
 	mux.HandleFunc("GET /v1/control/sites", control.Sites)
 	mux.HandleFunc("GET /v1/control/roles", control.Roles)
 	mux.HandleFunc("GET /v1/control/permissions", control.Permissions)
