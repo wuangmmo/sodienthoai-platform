@@ -297,7 +297,9 @@ jobs:
           fi
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM control_roles WHERE id='$AUDITROLE'; UPDATE control_audit_logs SET admin_user_id=NULL WHERE admin_user_id='$AUDITOR'; DELETE FROM admin_users WHERE id='$AUDITOR';"
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM control_roles WHERE id='$LIMITEDROLE'; UPDATE control_audit_logs SET admin_user_id=NULL WHERE admin_user_id='$LIMITED'; DELETE FROM admin_users WHERE id='$LIMITED';"
-          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/logout | grep -q '"ok":true'
+          LOGOUT_HTTP=$(curl -sS -o /tmp/admin-logout.json -w '%{http_code}' -X POST -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/logout)
+          test "$LOGOUT_HTTP" = "200" || { cat /tmp/admin-logout.json; exit 1; }
+          grep -Eq '"ok"[[:space:]]*:[[:space:]]*true' /tmp/admin-logout.json
           CODE=$(curl -sS -o /tmp/admin-bad-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin-ci@sodienthoai.test","password":"wrong-password"}' http://localhost:18080/admin/auth/login)
           test "$CODE" = "401"
       - name: Verify phone lookup over HTTP
