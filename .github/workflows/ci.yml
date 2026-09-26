@@ -210,8 +210,10 @@ jobs:
         run: PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -f database/testdata/seed.sql
       - name: Start API
         run: |
-          nohup go run ./cmd/api > /tmp/sodienthoai-api.log 2>&1 &
+          go build -o /tmp/sodienthoai-api ./cmd/api
+          /tmp/sodienthoai-api > /tmp/sodienthoai-api.log 2>&1 &
           echo $! > /tmp/sodienthoai-api.pid
+          disown || true
       - name: Bootstrap V44 admin fixture
         env:
           ADMIN_EMAIL: admin-ci@sodienthoai.test
