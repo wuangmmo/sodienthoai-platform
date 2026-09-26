@@ -254,6 +254,18 @@ jobs:
           PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM admin_users WHERE id='$SECOND';"
           COUNT=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT count(*) FROM control_admin_assignments ca JOIN control_roles r ON r.id=ca.role_id JOIN admin_users au ON au.id=ca.admin_user_id WHERE ca.organization_id='$ORG' AND ca.site_id IS NULL AND r.slug='super-admin' AND au.status='active';")
           test "$COUNT" = "1"
+          DUP=$(curl -sS -o /tmp/duplicate-scope.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "{\"adminUserId\":\"$ADMINID\",\"roleId\":\"$SUPERROLE\",\"organizationId\":\"$ORG\"}" http://localhost:18080/v1/control/scopes)
+          test "$DUP" = "400"
+          ORG2=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO organizations(slug,name,status) VALUES('ci-other-org','CI Other Org','active') RETURNING id;")
+          ROLE2=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO control_roles(organization_id,slug,name,description,is_system) VALUES('$ORG2','ci-role','CI Other Role','cross-org test',false) RETURNING id;")
+          SITE2=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO sites(organization_id,slug,name,domain,site_type,management_mode,status) VALUES('$ORG2','ci-other','CI Other','ci-other.example.com','service_site','managed','active') RETURNING id;")
+          CROSS=$(curl -sS -o /tmp/cross-org.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "{\"adminUserId\":\"$ADMINID\",\"roleId\":\"$ROLE2\",\"organizationId\":\"$ORG2\"}" http://localhost:18080/v1/control/scopes)
+          test "$CROSS" = "403"
+          grep -q 'scope_escalation' /tmp/cross-org.json
+          IDOR=$(curl -sS -o /tmp/idor-role.json -w '%{http_code}' -X DELETE -H "Authorization: Bearer $TOKEN" "http://localhost:18080/v1/control/roles/$ROLE2")
+          test "$IDOR" = "400"
+          SITEIDOR=$(curl -sS -o /tmp/idor-site.json -w '%{http_code}' -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"name":"Nope","slug":"nope","domain":"nope.example.com","siteType":"service_site","managementMode":"managed","status":"active"}' "http://localhost:18080/v1/control/sites/$SITE2")
+          test "$SITEIDOR" = "400"
           curl -fsS -X POST -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/logout | grep -q '"ok":true'
           CODE=$(curl -sS -o /tmp/admin-bad-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin-ci@sodienthoai.test","password":"wrong-password"}' http://localhost:18080/admin/auth/login)
           test "$CODE" = "401"
