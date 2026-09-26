@@ -106,6 +106,24 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+  control:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/control
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate dependency lock
+        run: |
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
   containers:
     runs-on: ubuntu-latest
     steps:
@@ -119,6 +137,8 @@ jobs:
         run: docker build -t sodienthoai-api:ci apps/api
       - name: Build Web image
         run: docker build -t sodienthoai-web:ci apps/web
+      - name: Build Control Center image
+        run: docker build -t sodienthoai-control:ci apps/control
       - name: Validate Compose configuration
         run: docker compose config --quiet
 
@@ -190,8 +210,10 @@ jobs:
         run: PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -f database/testdata/seed.sql
       - name: Start API
         run: |
-          nohup go run ./cmd/api > /tmp/sodienthoai-api.log 2>&1 &
+          go build -o /tmp/sodienthoai-api ./cmd/api
+          /tmp/sodienthoai-api > /tmp/sodienthoai-api.log 2>&1 &
           echo $! > /tmp/sodienthoai-api.pid
+          disown || true
       - name: Bootstrap V44 admin fixture
         env:
           ADMIN_EMAIL: admin-ci@sodienthoai.test
@@ -217,9 +239,76 @@ jobs:
           test -n "$TOKEN"
           curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/me | grep -q 'admin-ci@sodienthoai.test'
           curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/admin/dashboard | grep -q '"phones"'
-          curl -fsS -X POST -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/logout | grep -q '"ok":true'
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/control/me | grep -q '"dashboard.view"'
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/control/sites | grep -q '"sodienthoai.com"'
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/control/sites | grep -q '"mapsviet.com"'
+          curl -fsS -H "Authorization: Bearer $TOKEN" http://localhost:18080/v1/control/dashboard | grep -q '"sites":4'
+          ORG=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM organizations WHERE slug='sodienthoai-ecosystem';")
+          SUPERROLE=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM control_roles WHERE organization_id='$ORG' AND slug='super-admin';")
+          ADMINID=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM admin_users WHERE email='admin-ci@sodienthoai.test';")
+          ASSIGN=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM control_admin_assignments WHERE admin_user_id='$ADMINID' AND role_id='$SUPERROLE' AND organization_id='$ORG' AND site_id IS NULL LIMIT 1;")
+          CODE=$(curl -sS -o /tmp/self-revoke.json -w '%{http_code}' -X DELETE -H "Authorization: Bearer $TOKEN" "http://localhost:18080/v1/control/scopes/$ASSIGN")
+          test "$CODE" = "409"
+          grep -q 'self_scope_revoke_forbidden' /tmp/self-revoke.json
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "INSERT INTO admin_users(name,email,password_hash,role,status) SELECT 'CI Second Admin','ci-second@sodienthoai.test',password_hash,'super-admin','active' FROM admin_users WHERE id='$ADMINID';"
+          SECOND=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM admin_users WHERE email='ci-second@sodienthoai.test';")
+          SECONDASSIGN=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO control_admin_assignments(admin_user_id,role_id,organization_id) VALUES('$SECOND','$SUPERROLE','$ORG') RETURNING id;")
+          curl -fsS -X DELETE -H "Authorization: Bearer $TOKEN" "http://localhost:18080/v1/control/scopes/$SECONDASSIGN" | grep -q '"ok":true'
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM admin_users WHERE id='$SECOND';"
+          COUNT=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT count(*) FROM control_admin_assignments ca JOIN control_roles r ON r.id=ca.role_id JOIN admin_users au ON au.id=ca.admin_user_id WHERE ca.organization_id='$ORG' AND ca.site_id IS NULL AND r.slug='super-admin' AND au.status='active';")
+          test "$COUNT" = "1"
+          DUP=$(curl -sS -o /tmp/duplicate-scope.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "{\"adminUserId\":\"$ADMINID\",\"roleId\":\"$SUPERROLE\",\"organizationId\":\"$ORG\"}" http://localhost:18080/v1/control/scopes)
+          test "$DUP" = "400"
+          ORG2=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO organizations(slug,name,status) VALUES('ci-other-org','CI Other Org','active') RETURNING id;")
+          ROLE2=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO control_roles(organization_id,slug,name,description,is_system) VALUES('$ORG2','ci-role','CI Other Role','cross-org test',false) RETURNING id;")
+          SITE2=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO sites(organization_id,slug,name,domain,site_type,management_mode,status) VALUES('$ORG2','ci-other','CI Other','ci-other.example.com','service_site','managed','active') RETURNING id;")
+          CROSS=$(curl -sS -o /tmp/cross-org.json -w '%{http_code}' -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "{\"adminUserId\":\"$ADMINID\",\"roleId\":\"$ROLE2\",\"organizationId\":\"$ORG2\"}" http://localhost:18080/v1/control/scopes)
+          test "$CROSS" = "403"
+          grep -q 'scope_escalation' /tmp/cross-org.json
+          IDOR=$(curl -sS -o /tmp/idor-role.json -w '%{http_code}' -X DELETE -H "Authorization: Bearer $TOKEN" "http://localhost:18080/v1/control/roles/$ROLE2")
+          test "$IDOR" = "404"
+          SITEIDOR=$(curl -sS -o /tmp/idor-site.json -w '%{http_code}' -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"name":"Nope","slug":"nope","domain":"nope.example.com","siteType":"service_site","managementMode":"managed","status":"active"}' "http://localhost:18080/v1/control/sites/$SITE2")
+          test "$SITEIDOR" = "404"
+          AUDIT_SCOPE=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT count(*) FROM control_audit_logs WHERE action='scope.revoke' AND organization_id='$ORG' AND resource_type='admin_assignment';")
+          test "$AUDIT_SCOPE" -ge 1
+          BAD_AUDIT=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT count(*) FROM control_audit_logs WHERE action IN ('scope.assign','scope.revoke') AND organization_id IS NULL;")
+          test "$BAD_AUDIT" = "0"
+          LIMITED=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO admin_users(name,email,password_hash,role,status) SELECT 'CI Limited','ci-limited@sodienthoai.test',password_hash,'admin','active' FROM admin_users WHERE id='$ADMINID' RETURNING id;")
+          LIMITEDROLE=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO control_roles(organization_id,slug,name,description,is_system) VALUES('$ORG','ci-role-manager','CI Role Manager','permission escalation test',false) RETURNING id;")
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "INSERT INTO control_role_permissions(role_id,permission_key) VALUES('$LIMITEDROLE','roles.manage'); INSERT INTO control_admin_assignments(admin_user_id,role_id,organization_id) VALUES('$LIMITED','$LIMITEDROLE','$ORG');"
+          LIMITED_TOKEN=$(curl -fsS -H 'Content-Type: application/json' -d '{"email":"ci-limited@sodienthoai.test","password":"v44-ci-password-not-production"}' http://localhost:18080/admin/auth/login | python3 -c 'import sys,json; print(json.load(sys.stdin)["token"])')
+          ESC=$(curl -sS -o /tmp/permission-escalation.json -w '%{http_code}' -H "Authorization: Bearer $LIMITED_TOKEN" -H 'Content-Type: application/json' -d "{\"organizationId\":\"$ORG\",\"name\":\"Escalated\",\"slug\":\"ci-escalated\",\"description\":\"must fail\",\"permissions\":[\"roles.manage\",\"system.manage\"]}" http://localhost:18080/v1/control/roles)
+          test "$ESC" = "403"
+          grep -q 'permission_escalation' /tmp/permission-escalation.json
+          SYSTEM_ROLE=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM control_roles WHERE organization_id='$ORG' AND slug='admin' LIMIT 1;")
+          if [ -n "$SYSTEM_ROLE" ]; then
+            SYS_ESC=$(curl -sS -o /tmp/system-role-escalation.json -w '%{http_code}' -H "Authorization: Bearer $LIMITED_TOKEN" -H 'Content-Type: application/json' -d "{\"adminUserId\":\"$LIMITED\",\"roleId\":\"$SYSTEM_ROLE\",\"organizationId\":\"$ORG\"}" http://localhost:18080/v1/control/scopes)
+            test "$SYS_ESC" = "403"
+            grep -q 'system_role_assignment_forbidden' /tmp/system-role-escalation.json
+          fi
+          AUDITOR=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO admin_users(name,email,password_hash,role,status) SELECT 'CI Site Auditor','ci-site-auditor@sodienthoai.test',password_hash,'admin','active' FROM admin_users WHERE id='$ADMINID' RETURNING id;")
+          AUDITROLE=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "INSERT INTO control_roles(organization_id,slug,name,description,is_system) VALUES('$ORG','ci-audit-viewer','CI Audit Viewer','site isolation',false) RETURNING id;")
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "INSERT INTO control_role_permissions(role_id,permission_key) VALUES('$AUDITROLE','audit.view'); INSERT INTO control_admin_assignments(admin_user_id,role_id,organization_id,site_id) VALUES('$AUDITOR','$AUDITROLE','$ORG','$SITEID');"
+          AUDITOR_TOKEN=$(curl -fsS -H 'Content-Type: application/json' -d '{"email":"ci-site-auditor@sodienthoai.test","password":"v44-ci-password-not-production"}' http://localhost:18080/admin/auth/login | python3 -c 'import sys,json; print(json.load(sys.stdin)["token"])')
+          HIDDEN_SITE=$(PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -At -c "SELECT id FROM sites WHERE organization_id='$ORG' AND id<>'$SITEID' LIMIT 1;")
+          if [ -n "$HIDDEN_SITE" ]; then
+            PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "INSERT INTO control_audit_logs(admin_user_id,organization_id,site_id,action,resource_type,resource_id,before_data,after_data) VALUES('$ADMINID','$ORG','$HIDDEN_SITE','ci_hidden_audit','site','$HIDDEN_SITE','{}','{}');"
+            AUDIT_HTTP=$(curl -sS -o /tmp/site-audit.json -w '%{http_code}' -H "Authorization: Bearer $AUDITOR_TOKEN" http://localhost:18080/v1/control/audit)
+            test "$AUDIT_HTTP" = "200" || { cat /tmp/site-audit.json; exit 1; }
+            if grep -q 'ci_hidden_audit' /tmp/site-audit.json; then cat /tmp/site-audit.json; exit 1; fi
+          fi
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM control_roles WHERE id='$AUDITROLE'; UPDATE control_audit_logs SET admin_user_id=NULL WHERE admin_user_id='$AUDITOR'; DELETE FROM admin_users WHERE id='$AUDITOR';"
+          PGPASSWORD=sodienthoai psql -h localhost -U sodienthoai -d sodienthoai -v ON_ERROR_STOP=1 -c "DELETE FROM control_roles WHERE id='$LIMITEDROLE'; UPDATE control_audit_logs SET admin_user_id=NULL WHERE admin_user_id='$LIMITED'; DELETE FROM admin_users WHERE id='$LIMITED';"
+          LOGOUT_HTTP=$(curl -sS -o /tmp/admin-logout.json -w '%{http_code}' -X POST -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/logout)
+          test "$LOGOUT_HTTP" = "200" || { cat /tmp/admin-logout.json; exit 1; }
+          python3 -c 'import json; d=json.load(open("/tmp/admin-logout.json")); assert d.get("ok") is True, d' || { cat /tmp/admin-logout.json; exit 1; }
           CODE=$(curl -sS -o /tmp/admin-bad-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin-ci@sodienthoai.test","password":"wrong-password"}' http://localhost:18080/admin/auth/login)
-          test "$CODE" = "401"
+          test "$CODE" = "401" || { echo "bad-login expected 401, got $CODE"; cat /tmp/admin-bad-login.json; exit 1; }
+          # HTTP 401 is the integration contract here; response schema is covered by API tests.
+          echo "Control integration assertions passed"
+          echo "bad-login status=$CODE"
+          echo "logout status=$LOGOUT_HTTP"
+          echo "integration-step-complete"
       - name: Verify phone lookup over HTTP
         run: |
           BODY=$(curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899')

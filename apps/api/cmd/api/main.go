@@ -43,6 +43,23 @@ func main() {
 	mux.HandleFunc("POST /admin/auth/login", httpserver.RateLimitByIP(adminAuth.Login, 10, 15*time.Minute))
 	mux.HandleFunc("GET /admin/auth/me", adminAuth.Me)
 	mux.HandleFunc("POST /admin/auth/logout", adminAuth.Logout)
+	control := httpserver.ControlHandler{DB: db, Auth: &adminAuth}
+	mux.HandleFunc("GET /v1/control/me", control.Me)
+	mux.HandleFunc("GET /v1/control/dashboard", control.Dashboard)
+	mux.HandleFunc("GET /v1/control/organizations", control.Organizations)
+	mux.HandleFunc("GET /v1/control/sites", control.Sites)
+	mux.HandleFunc("GET /v1/control/roles", control.Roles)
+	mux.HandleFunc("GET /v1/control/permissions", control.Permissions)
+	mux.HandleFunc("POST /v1/control/sites", control.CreateSite)
+	mux.HandleFunc("PATCH /v1/control/sites/{id}", control.UpdateSite)
+	mux.HandleFunc("POST /v1/control/roles", control.CreateRole)
+	mux.HandleFunc("PATCH /v1/control/roles/{id}", control.UpdateRole)
+	mux.HandleFunc("DELETE /v1/control/roles/{id}", control.DeleteRole)
+	mux.HandleFunc("GET /v1/control/admins", control.Admins)
+	mux.HandleFunc("GET /v1/control/scopes", control.Assignments)
+	mux.HandleFunc("POST /v1/control/scopes", control.AssignScope)
+	mux.HandleFunc("DELETE /v1/control/scopes/{id}", control.RevokeScope)
+	mux.HandleFunc("GET /v1/control/audit", control.Audit)
 	phoneHandler := httpserver.PhoneHandler{Service: phone.Service{
 		Repository: phone.Repository{DB: db},
 		Cache: redisClient,
