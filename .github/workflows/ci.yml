@@ -308,6 +308,7 @@ jobs:
           echo "Control integration assertions passed"
           echo "bad-login status=$CODE"
           echo "logout status=$LOGOUT_HTTP"
+          echo "integration-step-complete"
       - name: Verify phone lookup over HTTP
         run: |
           BODY=$(curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899')
