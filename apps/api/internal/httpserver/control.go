@@ -185,9 +185,9 @@ func requestIP(r *http.Request) string {
 
 func auditTx(ctx context.Context,tx *sql.Tx,a controlAccess,r *http.Request,action,typ,id string,before,after any) error {
 	b,_:=json.Marshal(before); n,_:=json.Marshal(after)
-	var orgID any
-	var siteID any
-	if typ=="site" { siteID=id }
+	var orgID string
+	var siteID *string
+	if typ=="site" { siteID=&id }
 	_ = tx.QueryRowContext(ctx,`SELECT organization_id::text FROM control_admin_assignments WHERE admin_user_id=$1::uuid AND organization_id IS NOT NULL ORDER BY (site_id IS NULL) DESC LIMIT 1`,a.Admin.ID).Scan(&orgID)
 	_,err:=tx.ExecContext(ctx,`INSERT INTO control_audit_logs(admin_user_id,organization_id,site_id,action,resource_type,resource_id,before_data,after_data,ip_address) VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7::jsonb,$8::jsonb,NULLIF($9,'')::inet)`,a.Admin.ID,orgID,siteID,action,typ,id,string(b),string(n),requestIP(r))
 	return err
