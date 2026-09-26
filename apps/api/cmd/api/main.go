@@ -43,6 +43,10 @@ func main() {
 	mux.HandleFunc("POST /admin/auth/login", httpserver.RateLimitByIP(adminAuth.Login, 10, 15*time.Minute))
 	mux.HandleFunc("GET /admin/auth/me", adminAuth.Me)
 	mux.HandleFunc("POST /admin/auth/logout", adminAuth.Logout)
+	control := httpserver.ControlHandler{DB: db, Auth: &adminAuth}
+	mux.HandleFunc("GET /v1/control/me", control.Me)
+	mux.HandleFunc("GET /v1/control/dashboard", control.Dashboard)
+	mux.HandleFunc("GET /v1/control/sites", control.Sites)
 	phoneHandler := httpserver.PhoneHandler{Service: phone.Service{
 		Repository: phone.Repository{DB: db},
 		Cache: redisClient,
