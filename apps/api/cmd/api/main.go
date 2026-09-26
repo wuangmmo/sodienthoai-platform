@@ -47,6 +47,8 @@ func main() {
 	mux.HandleFunc("GET /v1/control/me", control.Me)
 	mux.HandleFunc("GET /v1/control/dashboard", control.Dashboard)
 	mux.HandleFunc("GET /v1/control/sites", control.Sites)
+	mux.HandleFunc("GET /v1/control/roles", control.Roles)
+	mux.HandleFunc("GET /v1/control/permissions", control.Permissions)
 	phoneHandler := httpserver.PhoneHandler{Service: phone.Service{
 		Repository: phone.Repository{DB: db},
 		Cache: redisClient,
