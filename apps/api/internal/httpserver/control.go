@@ -163,10 +163,25 @@ func parsePGTextArray(raw string) []string {
 
 type controlSiteInput struct { Name string `json:"name"`; Slug string `json:"slug"`; Domain string `json:"domain"`; SiteType string `json:"siteType"`; ManagementMode string `json:"managementMode"`; Status string `json:"status"` }
 type controlRoleInput struct { Name string `json:"name"`; Slug string `json:"slug"`; Description string `json:"description"`; Permissions []string `json:"permissions"` }
-)
-func validSiteInput(in controlSiteInput) bool { types:=map[string]bool{"identity_platform":true,"local_directory":true,"web_archive":true,"service_site":true,"connected_platform":true};modes:=map[string]bool{"managed":true,"connected":true};statuses:=map[string]bool{"active":true,"disabled":true};return in.Name!=""&&slugRE.MatchString(in.Slug)&&domainRE.MatchString(in.Domain)&&types[in.SiteType]&&modes[in.ManagementMode]&&statuses[in.Status] }
-func requestIP(r *http.Request) string { raw:=strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"),",")[0]);if raw==""{raw=r.RemoteAddr};if host,_,err:=net.SplitHostPort(raw);err==nil{raw=host};if net.ParseIP(raw)==nil{return ""};return raw }
+type controlScopeInput struct { AdminUserID string `json:"adminUserId"`; RoleID string `json:"roleId"`; OrganizationID string `json:"organizationId"`; SiteID *string `json:"siteId"` }
 
+var slugRE=regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+var domainRE=regexp.MustCompile(`^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$`)
+
+func validSiteInput(in controlSiteInput) bool {
+	types:=map[string]bool{"identity_platform":true,"local_directory":true,"web_archive":true,"service_site":true,"connected_platform":true}
+	modes:=map[string]bool{"managed":true,"connected":true}
+	statuses:=map[string]bool{"active":true,"disabled":true}
+	return in.Name!="" && slugRE.MatchString(in.Slug) && domainRE.MatchString(in.Domain) && types[in.SiteType] && modes[in.ManagementMode] && statuses[in.Status]
+}
+
+func requestIP(r *http.Request) string {
+	raw:=strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"),",")[0])
+	if raw=="" { raw=r.RemoteAddr }
+	if host,_,err:=net.SplitHostPort(raw); err==nil { raw=host }
+	if net.ParseIP(raw)==nil { return "" }
+	return raw
+}
 
 func auditTx(ctx context.Context,tx *sql.Tx,a controlAccess,r *http.Request,action,typ,id string,before,after any) error { b,_:=json.Marshal(before);n,_:=json.Marshal(after);_,err:=tx.ExecContext(ctx,`INSERT INTO control_audit_logs(admin_user_id,action,resource_type,resource_id,before_data,after_data,ip_address) VALUES($1::uuid,$2,$3,$4,$5::jsonb,$6::jsonb,NULLIF($7,'')::inet)`,a.Admin.ID,action,typ,id,string(b),string(n),requestIP(r));return err }
 
