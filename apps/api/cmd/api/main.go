@@ -54,6 +54,7 @@ func main() {
 	mux.HandleFunc("POST /v1/control/roles", control.CreateRole)
 	mux.HandleFunc("PATCH /v1/control/roles/{id}", control.UpdateRole)
 	mux.HandleFunc("DELETE /v1/control/roles/{id}", control.DeleteRole)
+	mux.HandleFunc("GET /v1/control/admins", control.Admins)
 	mux.HandleFunc("GET /v1/control/scopes", control.Assignments)
 	mux.HandleFunc("POST /v1/control/scopes", control.AssignScope)
 	mux.HandleFunc("DELETE /v1/control/scopes/{id}", control.RevokeScope)
