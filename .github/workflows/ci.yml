@@ -121,6 +121,7 @@ jobs:
           rm -f package-lock.json
           npm install --package-lock-only --ignore-scripts
       - run: npm ci
+      - run: npm test
       - run: npm run build
 
   containers:
