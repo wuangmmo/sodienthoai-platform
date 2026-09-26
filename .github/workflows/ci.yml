@@ -303,6 +303,7 @@ jobs:
           CODE=$(curl -sS -o /tmp/admin-bad-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin-ci@sodienthoai.test","password":"wrong-password"}' http://localhost:18080/admin/auth/login)
           test "$CODE" = "401" || { echo "bad-login expected 401, got $CODE"; cat /tmp/admin-bad-login.json; exit 1; }
           # HTTP 401 is the integration contract here; response schema is covered by API tests.
+          true
       - name: Verify phone lookup over HTTP
         run: |
           BODY=$(curl -fsS 'http://localhost:18080/v1/phone/%2B84705899899')
