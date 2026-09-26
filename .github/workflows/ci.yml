@@ -264,9 +264,9 @@ jobs:
           test "$CROSS" = "403"
           grep -q 'scope_escalation' /tmp/cross-org.json
           IDOR=$(curl -sS -o /tmp/idor-role.json -w '%{http_code}' -X DELETE -H "Authorization: Bearer $TOKEN" "http://localhost:18080/v1/control/roles/$ROLE2")
-          test "$IDOR" = "400"
+          test "$IDOR" = "404"
           SITEIDOR=$(curl -sS -o /tmp/idor-site.json -w '%{http_code}' -X PATCH -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"name":"Nope","slug":"nope","domain":"nope.example.com","siteType":"service_site","managementMode":"managed","status":"active"}' "http://localhost:18080/v1/control/sites/$SITE2")
-          test "$SITEIDOR" = "400"
+          test "$SITEIDOR" = "404"
           curl -fsS -X POST -H "Authorization: Bearer $TOKEN" http://localhost:18080/admin/auth/logout | grep -q '"ok":true'
           CODE=$(curl -sS -o /tmp/admin-bad-login.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"email":"admin-ci@sodienthoai.test","password":"wrong-password"}' http://localhost:18080/admin/auth/login)
           test "$CODE" = "401"
