@@ -183,7 +183,15 @@ func requestIP(r *http.Request) string {
 	return raw
 }
 
-func auditTx(ctx context.Context,tx *sql.Tx,a controlAccess,r *http.Request,action,typ,id string,before,after any) error { b,_:=json.Marshal(before);n,_:=json.Marshal(after);_,err:=tx.ExecContext(ctx,`INSERT INTO control_audit_logs(admin_user_id,action,resource_type,resource_id,before_data,after_data,ip_address) VALUES($1::uuid,$2,$3,$4,$5::jsonb,$6::jsonb,NULLIF($7,'')::inet)`,a.Admin.ID,action,typ,id,string(b),string(n),requestIP(r));return err }
+func auditTx(ctx context.Context,tx *sql.Tx,a controlAccess,r *http.Request,action,typ,id string,before,after any) error {
+	b,_:=json.Marshal(before); n,_:=json.Marshal(after)
+	var orgID any
+	var siteID any
+	if typ=="site" { siteID=id }
+	_ = tx.QueryRowContext(ctx,`SELECT organization_id::text FROM control_admin_assignments WHERE admin_user_id=$1::uuid AND organization_id IS NOT NULL ORDER BY (site_id IS NULL) DESC LIMIT 1`,a.Admin.ID).Scan(&orgID)
+	_,err:=tx.ExecContext(ctx,`INSERT INTO control_audit_logs(admin_user_id,organization_id,site_id,action,resource_type,resource_id,before_data,after_data,ip_address) VALUES($1::uuid,$2::uuid,$3::uuid,$4,$5,$6,$7::jsonb,$8::jsonb,NULLIF($9,'')::inet)`,a.Admin.ID,orgID,siteID,action,typ,id,string(b),string(n),requestIP(r))
+	return err
+}
 
 func (h ControlHandler) CreateSite(w http.ResponseWriter,r *http.Request){a,ok:=h.access(r);if !ok{writeJSON(w,401,map[string]string{"error":"unauthorized"});return};if !a.Permissions["sites.manage"]{writeJSON(w,403,map[string]string{"error":"forbidden"});return};var in controlSiteInput;if json.NewDecoder(http.MaxBytesReader(w,r.Body,32<<10)).Decode(&in)!=nil{writeJSON(w,400,map[string]string{"error":"invalid_request"});return};in.Name=strings.TrimSpace(in.Name);in.Slug=strings.ToLower(strings.TrimSpace(in.Slug));in.Domain=strings.ToLower(strings.TrimSpace(in.Domain));if !validSiteInput(in){writeJSON(w,400,map[string]string{"error":"invalid_site"});return};ctx,cancel:=context.WithTimeout(r.Context(),4*time.Second);defer cancel();tx,err:=h.DB.BeginTx(ctx,nil);if err!=nil{writeJSON(w,500,map[string]string{"error":"internal_error"});return};defer tx.Rollback();var org,id string;err=tx.QueryRowContext(ctx,`SELECT organization_id::text FROM control_admin_assignments WHERE admin_user_id=$1::uuid AND organization_id IS NOT NULL AND site_id IS NULL LIMIT 1`,a.Admin.ID).Scan(&org);if err==nil{err=tx.QueryRowContext(ctx,`INSERT INTO sites(organization_id,slug,name,domain,site_type,management_mode,status) VALUES($1::uuid,$2,$3,$4,$5,$6,$7) RETURNING id::text`,org,in.Slug,in.Name,in.Domain,in.SiteType,in.ManagementMode,in.Status).Scan(&id)};if err==nil{err=auditTx(ctx,tx,a,r,"site.create","site",id,nil,in)};if err!=nil||tx.Commit()!=nil{writeJSON(w,400,map[string]string{"error":"site_create_failed"});return};writeJSON(w,201,map[string]any{"id":id})}
 
